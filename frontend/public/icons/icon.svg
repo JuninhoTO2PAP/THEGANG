@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="THE GANG">
+  <rect width="128" height="128" rx="28" fill="#0b0f14"/>
+  <path d="M28 86V42h18l14 28 14-28h18v44H78V62L66 86H54L42 62v24H28z" fill="#e8b84a"/>
+  <circle cx="98" cy="40" r="10" fill="#2dd4a8"/>
+</svg>

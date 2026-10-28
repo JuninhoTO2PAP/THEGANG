@@ -1,0 +1,6 @@
+{
+  "productName": "THE GANG",
+  "version": "0.1.0",
+  "identifier": "app.thegang.desktop",
+  "note": "Stub da Fase 3. O projeto Tauri v2 ainda não foi gerado. Veja desktop/README.md."
+}

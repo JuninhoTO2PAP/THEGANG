@@ -1,0 +1,14 @@
+# Tunnel Cloudflare para a API do THE GANG (mesmo padrão do hub/loja).
+# 1) cloudflared tunnel create the-gang-api
+# 2) DNS CNAME: api-gang → <tunnel-id>.cfargotunnel.com (Proxied)
+# 3) Copie este arquivo para ~/.cloudflared/config.yml (ou rode com --config)
+# 4) Suba a API local/VPS na porta 8000
+# 5) cloudflared tunnel run the-gang-api
+
+tunnel: SUBSTITUA_PELO_TUNNEL_ID
+credentials-file: C:\Users\SEU_USER\.cloudflared\SUBSTITUA_PELO_TUNNEL_ID.json
+
+ingress:
+  - hostname: api-gang.httpslaudo.com.br
+    service: http://127.0.0.1:8000
+  - service: http_status:404

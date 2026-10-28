@@ -1,0 +1,10 @@
+# Cloudflare Pages — THE GANG
+# Deploy: npm run build && npx wrangler pages deploy dist --project-name=the-gang
+
+name = "the-gang"
+compatibility_date = "2026-10-27"
+pages_build_output_dir = "dist"
+
+[vars]
+# Sobrescreva no dashboard Pages → Settings → Environment variables
+# API_ORIGIN = "https://api-gang.httpslaudo.com.br"

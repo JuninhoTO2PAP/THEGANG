@@ -1,0 +1,35 @@
+# Sobe a API local. O frontend entra neste arquivo na etapa da interface.
+name: the-gang
+
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    environment:
+      ENVIRONMENT: development
+      SECRET_KEY: sua_chave_aqui_troque_em_producao_min_32_chars
+      DATABASE_URL: sqlite:////app/data/thegang.db
+      CORS_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
+      BCRYPT_ROUNDS: "12"
+      ACCESS_TOKEN_EXPIRE_MINUTES: "15"
+      REFRESH_TOKEN_EXPIRE_DAYS: "7"
+    volumes:
+      - gang-data:/app/data
+      - ./backend/uploads:/app/uploads
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health')",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+
+volumes:
+  gang-data:

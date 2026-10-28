@@ -1,0 +1,1 @@
+"""Sessão, base e seed."""
