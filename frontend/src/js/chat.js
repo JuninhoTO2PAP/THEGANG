@@ -862,8 +862,13 @@ export function renderChat(container, user, { onOpenSettings, onLogout }) {
 
   function handleWsEvent(event) {
     if (event.type === "hello") {
+      const onlineSet = new Set(event.online_user_ids || []);
+      if (event.user_id) onlineSet.add(event.user_id);
       offlineIds = new Set();
-      for (const id of event.online_user_ids || []) offlineIds.delete(id);
+      members = members.map((m) => ({
+        ...m,
+        is_online: onlineSet.has(m.id),
+      }));
       paintMembers();
       return;
     }

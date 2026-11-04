@@ -18,7 +18,6 @@ const HOP_BY_HOP = new Set([
   "x-real-ip",
 ]);
 
-// Fallback = tunnel rápido atual. Prefira API_ORIGIN no dashboard Pages.
 const FALLBACK_API_ORIGIN = "https://the-gang-api.onrender.com";
 
 function backendOrigin(env) {
@@ -46,6 +45,21 @@ export async function onRequest(context) {
 
   const incoming = new URL(request.url);
   const target = new URL(incoming.pathname + incoming.search, origin);
+
+  // WebSocket: NÃO remova Upgrade/Connection — senão a presença nunca sobe.
+  if ((request.headers.get("Upgrade") || "").toLowerCase() === "websocket") {
+    const wsHeaders = new Headers(request.headers);
+    wsHeaders.set("Host", target.host);
+    try {
+      return await fetch(target.toString(), {
+        headers: wsHeaders,
+      });
+    } catch (error) {
+      return new Response(`Falha no WebSocket: ${error.message || error}`, {
+        status: 502,
+      });
+    }
+  }
 
   const headers = new Headers();
   for (const [key, value] of request.headers.entries()) {

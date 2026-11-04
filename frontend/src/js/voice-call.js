@@ -348,12 +348,18 @@ export async function startVoiceCall(channel, mountEl, { user, group } = {}) {
     };
 
     const syncRoster = () => {
+      if (!videosEl) return;
       ensureTile(room.localParticipant, "user");
       for (const p of room.remoteParticipants.values()) {
         ensureTile(p, "user");
       }
-      const total = room.remoteParticipants.size + 1;
+      const total = 1 + room.remoteParticipants.size;
+      const names = [
+        displayName(room.localParticipant),
+        ...[...room.remoteParticipants.values()].map(displayName),
+      ];
       statusEl.textContent = `${total} na call · ${channel.name}`;
+      statusEl.title = names.join(", ");
     };
 
     const attachTrack = (track, participant, publication) => {
