@@ -23,8 +23,13 @@ def normalize_database_url(url: str) -> str:
             url = "postgresql+psycopg://" + url[len(prefix) :]
             break
 
-    if "sslmode=" not in url.lower() and url.startswith("postgresql+psycopg://"):
-        # Render Postgres exige TLS na URL externa; na interna não atrapalha.
+    # TLS só na URL externa do Render (host *.render.com). Interna não precisa.
+    host_part = url.split("@")[-1].lower() if "@" in url else ""
+    if (
+        url.startswith("postgresql+psycopg://")
+        and "sslmode=" not in url.lower()
+        and "render.com" in host_part
+    ):
         url = url + ("&" if "?" in url else "?") + "sslmode=require"
 
     prefix = "sqlite:///./"

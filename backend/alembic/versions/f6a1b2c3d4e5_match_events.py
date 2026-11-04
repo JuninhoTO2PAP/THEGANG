@@ -31,7 +31,7 @@ def upgrade() -> None:
         sa.Column("booyah_count", sa.Integer(), nullable=True),
         sa.Column("kills", sa.Integer(), nullable=True),
         sa.Column("points", sa.Integer(), nullable=True),
-        sa.Column("is_win", sa.Boolean(), nullable=False, server_default=sa.text("0")),
+        sa.Column("is_win", sa.Boolean(), nullable=False, server_default=sa.false()),
         sa.Column("mvp_user_id", sa.Integer(), sa.ForeignKey("users.id"), nullable=True),
         sa.Column("created_at", sa.DateTime(), nullable=False),
     )
