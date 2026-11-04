@@ -18,7 +18,7 @@ const HOP_BY_HOP = new Set([
   "x-real-ip",
 ]);
 
-const FALLBACK_API_ORIGIN = "https://cad-remaining-councils-notebooks.trycloudflare.com";
+const FALLBACK_API_ORIGIN = "https://the-gang-api.onrender.com";
 
 export async function onRequest(context) {
   const { request, env } = context;

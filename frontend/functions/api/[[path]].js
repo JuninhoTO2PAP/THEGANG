@@ -19,7 +19,7 @@ const HOP_BY_HOP = new Set([
 ]);
 
 // Fallback = tunnel rápido atual. Prefira API_ORIGIN no dashboard Pages.
-const FALLBACK_API_ORIGIN = "https://cad-remaining-councils-notebooks.trycloudflare.com";
+const FALLBACK_API_ORIGIN = "https://the-gang-api.onrender.com";
 
 function backendOrigin(env) {
   const origin = (env.API_ORIGIN || FALLBACK_API_ORIGIN || "").replace(/\/$/, "");
