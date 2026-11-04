@@ -12,11 +12,20 @@ BASE_DIR = Path(__file__).resolve().parents[2]
 
 
 def normalize_database_url(url: str) -> str:
-    """Resolve SQLite relativo e adapta URL do Railway/Heroku (postgres://)."""
-    if url.startswith("postgres://"):
-        url = "postgresql+psycopg://" + url[len("postgres://") :]
-    elif url.startswith("postgresql://") and "+psycopg" not in url:
-        url = "postgresql+psycopg://" + url[len("postgresql://") :]
+    """Resolve SQLite relativo e adapta URL do Render/Railway (postgres://)."""
+    url = (url or "").strip().strip('"').strip("'")
+    lower = url.lower()
+
+    # Render/Heroku entregam postgres:// ou postgresql:// (driver padrão = psycopg2).
+    # Este projeto usa psycopg v3 → sqlalchemy precisa de postgresql+psycopg://
+    for prefix in ("postgres://", "postgresql://"):
+        if lower.startswith(prefix) and "+psycopg" not in lower.split("://", 1)[0]:
+            url = "postgresql+psycopg://" + url[len(prefix) :]
+            break
+
+    if "sslmode=" not in url.lower() and url.startswith("postgresql+psycopg://"):
+        # Render Postgres exige TLS na URL externa; na interna não atrapalha.
+        url = url + ("&" if "?" in url else "?") + "sslmode=require"
 
     prefix = "sqlite:///./"
     if url.startswith(prefix):
