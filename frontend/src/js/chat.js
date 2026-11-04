@@ -540,7 +540,7 @@ export function renderChat(container, user, { onOpenSettings, onLogout }) {
     activeDm = null;
     if (!activeGroup) return;
     paintRail();
-    titleEl.textContent = activeGroup.name;
+    titleEl.textContent = activeGroup.display_name || activeGroup.name;
     settingsBtn.hidden = false;
     try {
       [channels, members] = await Promise.all([
