@@ -197,7 +197,12 @@ export function renderChat(container, user, { onOpenSettings, onLogout }) {
   function paintRail() {
     rail.innerHTML = groups
       .map((group) => {
-        const label = group.name.slice(0, 2).toUpperCase();
+        const label =
+          group.name === "THE GANG A"
+            ? "A"
+            : group.name === "THE GANG B"
+              ? "B"
+              : group.name.slice(0, 2).toUpperCase();
         const active = activeGroup?.id === group.id ? "active" : "";
         return `<button class="server-pill ${active}" type="button" data-group="${group.id}" title="${escapeAttr(group.name)}">${escapeHtml(label)}</button>`;
       })

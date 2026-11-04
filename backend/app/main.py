@@ -22,6 +22,23 @@ async def lifespan(_app: FastAPI):
     uploads.mkdir(parents=True, exist_ok=True)
     (uploads / "avatars").mkdir(parents=True, exist_ok=True)
     (uploads / "chat").mkdir(parents=True, exist_ok=True)
+    # Garante THE GANG A/B + CPT no boot (dono do app nos dois).
+    try:
+        from sqlalchemy import select
+
+        from app.db.session import SessionLocal
+        from app.models import User
+        from app.services.group_service import ensure_team_groups
+
+        db = SessionLocal()
+        try:
+            admin = db.scalar(select(User).where(User.is_admin.is_(True)).order_by(User.id))
+            if admin is not None:
+                ensure_team_groups(db, owner=admin)
+        finally:
+            db.close()
+    except Exception:
+        pass
     yield
 
 
