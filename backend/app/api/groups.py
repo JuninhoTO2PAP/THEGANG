@@ -47,6 +47,7 @@ def _group_public(group, perms: int) -> GroupPublic:
     return GroupPublic(
         id=group.id,
         name=group.name,
+        display_name=group_service.team_label(group.name),
         description=group.description,
         icon_url=group.icon_url,
         is_private=group.is_private,

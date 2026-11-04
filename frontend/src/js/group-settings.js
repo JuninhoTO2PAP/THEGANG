@@ -485,8 +485,8 @@ export function openGroupSettings(group, { onChanged, onDeleted, user } = {}) {
   function paintMembers() {
     const manage = can(current.my_permissions, Perm.MANAGE_ROLES);
     const assignable = roles.filter((role) => !role.is_default);
-    const isTeamA = current.name === "THE GANG A";
-    const isTeamB = current.name === "THE GANG B";
+    const isTeamA = current.name === "the-gang-a" || current.name === "THE GANG A";
+    const isTeamB = current.name === "the-gang-b" || current.name === "THE GANG B";
     const otherTeam = isTeamA ? "b" : isTeamB ? "a" : null;
     const otherLabel = otherTeam === "b" ? "THE GANG B" : "THE GANG A";
 

@@ -198,13 +198,14 @@ export function renderChat(container, user, { onOpenSettings, onLogout }) {
     rail.innerHTML = groups
       .map((group) => {
         const label =
-          group.name === "THE GANG A"
+          group.name === "the-gang-a" || group.name === "THE GANG A"
             ? "A"
-            : group.name === "THE GANG B"
+            : group.name === "the-gang-b" || group.name === "THE GANG B"
               ? "B"
-              : group.name.slice(0, 2).toUpperCase();
+              : (group.display_name || group.name).slice(0, 2).toUpperCase();
+        const title = group.display_name || group.name;
         const active = activeGroup?.id === group.id ? "active" : "";
-        return `<button class="server-pill ${active}" type="button" data-group="${group.id}" title="${escapeAttr(group.name)}">${escapeHtml(label)}</button>`;
+        return `<button class="server-pill ${active}" type="button" data-group="${group.id}" title="${escapeAttr(title)}">${escapeHtml(label)}</button>`;
       })
       .join("");
   }
@@ -1117,7 +1118,7 @@ export function renderChat(container, user, { onOpenSettings, onLogout }) {
       return;
     }
     const defaultGroup =
-      groups.find((g) => g.name === "THE GANG A") ||
+      groups.find((g) => g.name === "the-gang-a" || g.name === "THE GANG A") ||
       groups.find((g) => g.name === "the-gang") ||
       groups[0];
     if (defaultGroup) {

@@ -67,10 +67,22 @@ def list_groups_for_user(db: Session, user: User) -> list[tuple[Group, int]]:
 
 
 DEFAULT_GROUP_NAME = "the-gang"  # legado
-TEAM_A_NAME = "THE GANG A"
-TEAM_B_NAME = "THE GANG B"
+# Slugs (GroupCreate normaliza para minúsculo/hífen). Labels só na UI.
+TEAM_A_NAME = "the-gang-a"
+TEAM_B_NAME = "the-gang-b"
+TEAM_LABELS = {
+    TEAM_A_NAME: "THE GANG A",
+    TEAM_B_NAME: "THE GANG B",
+    DEFAULT_GROUP_NAME: "THE GANG A",
+}
 TEAM_NAMES = (TEAM_A_NAME, TEAM_B_NAME)
-PROTECTED_GROUP_NAMES = {DEFAULT_GROUP_NAME, TEAM_A_NAME, TEAM_B_NAME}
+PROTECTED_GROUP_NAMES = {
+    DEFAULT_GROUP_NAME,
+    TEAM_A_NAME,
+    TEAM_B_NAME,
+    "THE GANG A",
+    "THE GANG B",
+}
 
 
 def team_name(team: str) -> str:
@@ -78,6 +90,10 @@ def team_name(team: str) -> str:
     if key == "b":
         return TEAM_B_NAME
     return TEAM_A_NAME
+
+
+def team_label(name: str) -> str:
+    return TEAM_LABELS.get(name, name)
 
 
 def _ensure_cpt_role(db: Session, group: Group) -> Role:
@@ -130,19 +146,27 @@ def ensure_default_group(db: Session, owner: User | None = None) -> Group:
 def ensure_team_groups(
     db: Session, owner: User | None = None
 ) -> tuple[Group, Group]:
-    """Garante THE GANG A e THE GANG B; o dono do app fica nos dois."""
+    """Garante the-gang-a e the-gang-b; o dono do app fica nos dois."""
     creator = owner if owner is not None and owner.is_admin else None
     if creator is None:
         creator = db.scalar(select(User).where(User.is_admin.is_(True)).order_by(User.id))
     if creator is None:
         raise AppError(500, "Não há administrador para criar os times.")
 
-    legacy = db.scalar(select(Group).where(Group.name == DEFAULT_GROUP_NAME))
-    if legacy is not None:
-        legacy.name = TEAM_A_NAME
-        legacy.description = "Time A do THE GANG"
-        db.add(legacy)
-        db.flush()
+    # Migra nomes antigos → slugs.
+    for old_name, new_name in (
+        (DEFAULT_GROUP_NAME, TEAM_A_NAME),
+        ("THE GANG A", TEAM_A_NAME),
+        ("THE GANG B", TEAM_B_NAME),
+    ):
+        row = db.scalar(select(Group).where(Group.name == old_name))
+        if row is None:
+            continue
+        clash = db.scalar(select(Group).where(Group.name == new_name, Group.id != row.id))
+        if clash is None:
+            row.name = new_name
+            db.add(row)
+            db.flush()
 
     groups: list[Group] = []
     for name, description in (
@@ -158,7 +182,7 @@ def ensure_team_groups(
             )
         else:
             group = existing
-            if not group.description:
+            if group.description != description:
                 group.description = description
                 db.add(group)
         _ensure_cpt_role(db, group)

@@ -34,6 +34,7 @@ class GroupPublic(BaseModel):
 
     id: int
     name: str
+    display_name: str | None = None
     description: str
     icon_url: str | None
     is_private: bool
