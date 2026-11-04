@@ -1290,32 +1290,68 @@ textarea {
 
 .call-videos {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 12px;
   overflow: auto;
   align-content: start;
+  min-height: 180px;
 }
 
 .call-tile {
   background: #1e1f22;
+  border: 1px solid var(--line);
   border-radius: 12px;
   overflow: hidden;
   position: relative;
   min-height: 140px;
+  display: grid;
+  place-items: center;
+}
+
+.call-tile.screen {
+  grid-column: 1 / -1;
+  min-height: 280px;
+  background: #0c0d0f;
 }
 
 .call-tile video {
   width: 100%;
-  height: 160px;
+  height: 100%;
+  min-height: 160px;
   object-fit: cover;
   display: block;
   background: #000;
+  z-index: 1;
 }
 
-.call-tile span {
+.call-tile.screen video {
+  object-fit: contain;
+  min-height: 280px;
+  max-height: 55vh;
+}
+
+.call-tile-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(145deg, #5865f2, #3ba55d);
+  color: #fff;
+  font-weight: 700;
+  font-size: 1.4rem;
+  z-index: 0;
+}
+
+.call-tile.has-video .call-tile-avatar {
+  display: none;
+}
+
+.call-tile-name {
   position: absolute;
   left: 8px;
   bottom: 8px;
+  z-index: 2;
   background: rgba(0, 0, 0, 0.55);
   padding: 2px 8px;
   border-radius: 6px;

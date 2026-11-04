@@ -307,47 +307,164 @@ export async function startVoiceCall(channel, mountEl, { user, group } = {}) {
     const room = new mod.Room({ adaptiveStream: true, dynacast: true });
     activeRoom = room;
 
-    const attachTrack = (track, participant) => {
+    const displayName = (participant) =>
+      participant.name || participant.identity || "Membro";
+
+    const tileId = (participant, kind) => `${participant.identity}__${kind}`;
+
+    const ensureTile = (participant, kind = "user") => {
+      const id = tileId(participant, kind);
+      let wrap = videosEl.querySelector(`[data-tile="${id}"]`);
+      if (wrap) return wrap;
+      wrap = document.createElement("div");
+      wrap.className = `call-tile${kind === "screen" ? " screen" : ""}`;
+      wrap.dataset.tile = id;
+      wrap.dataset.identity = participant.identity;
+      const label =
+        kind === "screen"
+          ? `${displayName(participant)} · tela`
+          : displayName(participant);
+      wrap.innerHTML = `
+        <div class="call-tile-avatar" aria-hidden="true">${escapeHtml(
+          String(displayName(participant)).slice(0, 1).toUpperCase()
+        )}</div>
+        <span class="call-tile-name">${escapeHtml(label)}</span>
+      `;
+      if (kind === "screen") {
+        videosEl.prepend(wrap);
+      } else {
+        videosEl.appendChild(wrap);
+      }
+      return wrap;
+    };
+
+    const removeTilesFor = (identity) => {
+      videosEl
+        .querySelectorAll(`[data-identity="${CSS.escape(identity)}"]`)
+        .forEach((el) => el.remove());
+      document
+        .querySelectorAll(`audio[data-identity="${CSS.escape(identity)}"]`)
+        .forEach((el) => el.remove());
+    };
+
+    const syncRoster = () => {
+      ensureTile(room.localParticipant, "user");
+      for (const p of room.remoteParticipants.values()) {
+        ensureTile(p, "user");
+      }
+      const total = room.remoteParticipants.size + 1;
+      statusEl.textContent = `${total} na call · ${channel.name}`;
+    };
+
+    const attachTrack = (track, participant, publication) => {
+      const source = publication?.source;
+      const isScreen =
+        source === mod.Track.Source.ScreenShare ||
+        source === mod.Track.Source.ScreenShareAudio;
+
       if (track.kind === "audio") {
+        // Áudio local já sai no sistema; não duplicar.
+        if (participant.isLocal) return;
+        const existing = document.querySelector(
+          `audio[data-identity="${CSS.escape(participant.identity)}"][data-source="${source || "mic"}"]`
+        );
+        if (existing) return;
         const audio = track.attach();
         audio.dataset.identity = participant.identity;
+        audio.dataset.source = String(source || "mic");
         audio.autoplay = true;
+        audio.muted = deafened;
         document.body.appendChild(audio);
         return;
       }
+
       if (track.kind === "video") {
-        let wrap = videosEl.querySelector(`[data-id="${participant.identity}"]`);
-        if (!wrap) {
-          wrap = document.createElement("div");
-          wrap.className = "call-tile";
-          wrap.dataset.id = participant.identity;
-          wrap.innerHTML = `<span>${participant.name || participant.identity}</span>`;
-          videosEl.appendChild(wrap);
-        }
+        const kind = isScreen ? "screen" : "user";
+        const wrap = ensureTile(participant, kind);
+        wrap.querySelectorAll("video").forEach((v) => v.remove());
+        wrap.classList.toggle("has-video", true);
         const video = track.attach();
         video.playsInline = true;
         video.autoplay = true;
+        video.muted = true;
         wrap.prepend(video);
       }
     };
 
-    room.on(mod.RoomEvent.TrackSubscribed, (track, _pub, participant) => {
-      attachTrack(track, participant);
-      statusEl.textContent = `${room.remoteParticipants.size + 1} na call · ${channel.name}`;
-    });
-    room.on(mod.RoomEvent.TrackUnsubscribed, (track) => {
+    const detachTrack = (track, participant, publication) => {
       track.detach().forEach((el) => el.remove());
+      const source = publication?.source;
+      if (
+        source === mod.Track.Source.ScreenShare &&
+        participant &&
+        !participant.isLocal
+      ) {
+        videosEl
+          .querySelector(`[data-tile="${tileId(participant, "screen")}"]`)
+          ?.remove();
+      }
+      if (source === mod.Track.Source.ScreenShare && participant?.isLocal) {
+        videosEl
+          .querySelector(`[data-tile="${tileId(participant, "screen")}"]`)
+          ?.remove();
+      }
+      if (source === mod.Track.Source.Camera && participant) {
+        const wrap = videosEl.querySelector(
+          `[data-tile="${tileId(participant, "user")}"]`
+        );
+        if (wrap) {
+          wrap.querySelectorAll("video").forEach((v) => v.remove());
+          wrap.classList.remove("has-video");
+        }
+      }
+    };
+
+    const attachExisting = (participant) => {
+      ensureTile(participant, "user");
+      for (const pub of participant.trackPublications.values()) {
+        if (pub.track && (participant.isLocal || pub.isSubscribed)) {
+          attachTrack(pub.track, participant, pub);
+        }
+      }
+    };
+
+    room.on(mod.RoomEvent.TrackSubscribed, (track, pub, participant) => {
+      attachTrack(track, participant, pub);
+      syncRoster();
+    });
+    room.on(mod.RoomEvent.TrackUnsubscribed, (track, pub, participant) => {
+      detachTrack(track, participant, pub);
+    });
+    room.on(mod.RoomEvent.LocalTrackPublished, (pub, participant) => {
+      if (pub.track) attachTrack(pub.track, participant, pub);
+      syncRoster();
+    });
+    room.on(mod.RoomEvent.LocalTrackUnpublished, (pub, participant) => {
+      if (pub.track) detachTrack(pub.track, participant, pub);
+      else if (pub.source === mod.Track.Source.ScreenShare) {
+        videosEl
+          .querySelector(`[data-tile="${tileId(participant, "screen")}"]`)
+          ?.remove();
+      }
+    });
+    room.on(mod.RoomEvent.ParticipantConnected, (participant) => {
+      ensureTile(participant, "user");
+      syncRoster();
+      toast(`${displayName(participant)} entrou na call.`);
     });
     room.on(mod.RoomEvent.ParticipantDisconnected, (participant) => {
-      videosEl.querySelector(`[data-id="${participant.identity}"]`)?.remove();
-      document
-        .querySelectorAll(`audio[data-identity="${participant.identity}"]`)
-        .forEach((el) => el.remove());
+      removeTilesFor(participant.identity);
+      syncRoster();
     });
 
     await room.connect(token.url, token.token);
     await room.localParticipant.setMicrophoneEnabled(true);
-    statusEl.textContent = `Na call · ${channel.name}`;
+
+    attachExisting(room.localParticipant);
+    for (const p of room.remoteParticipants.values()) {
+      attachExisting(p);
+    }
+    syncRoster();
     playCallJoin();
     toast("Entrou na call.");
 
@@ -388,14 +505,25 @@ export async function startVoiceCall(channel, mountEl, { user, group } = {}) {
     });
 
     mountEl.querySelector("#call-cam").addEventListener("click", async () => {
-      camOn = !camOn;
-      await room.localParticipant.setCameraEnabled(camOn);
-      mountEl.querySelector("#call-cam").classList.toggle("on", camOn);
-      if (camOn) {
-        const pub = [...room.localParticipant.videoTrackPublications.values()].find(
-          (p) => p.source === mod.Track.Source.Camera
-        );
-        if (pub?.track) attachTrack(pub.track, room.localParticipant);
+      try {
+        camOn = !camOn;
+        await room.localParticipant.setCameraEnabled(camOn);
+        mountEl.querySelector("#call-cam").classList.toggle("on", camOn);
+        if (camOn) {
+          const pub = [...room.localParticipant.videoTrackPublications.values()].find(
+            (p) => p.source === mod.Track.Source.Camera
+          );
+          if (pub?.track) attachTrack(pub.track, room.localParticipant, pub);
+        } else {
+          const wrap = videosEl.querySelector(
+            `[data-tile="${tileId(room.localParticipant, "user")}"]`
+          );
+          wrap?.querySelectorAll("video").forEach((v) => v.remove());
+          wrap?.classList.remove("has-video");
+        }
+      } catch (error) {
+        camOn = false;
+        toast(error.message || "Câmera indisponível.", true);
       }
     });
 
@@ -404,9 +532,21 @@ export async function startVoiceCall(channel, mountEl, { user, group } = {}) {
         screenOn = !screenOn;
         await room.localParticipant.setScreenShareEnabled(screenOn);
         mountEl.querySelector("#call-screen").classList.toggle("on", screenOn);
-        toast(screenOn ? "Compartilhando tela." : "Parou de compartilhar.");
+        if (screenOn) {
+          const pub = [...room.localParticipant.videoTrackPublications.values()].find(
+            (p) => p.source === mod.Track.Source.ScreenShare
+          );
+          if (pub?.track) attachTrack(pub.track, room.localParticipant, pub);
+          toast("Compartilhando tela.");
+        } else {
+          videosEl
+            .querySelector(`[data-tile="${tileId(room.localParticipant, "screen")}"]`)
+            ?.remove();
+          toast("Parou de compartilhar.");
+        }
       } catch (error) {
         screenOn = false;
+        mountEl.querySelector("#call-screen").classList.remove("on");
         toast(error.message || "Não foi possível compartilhar a tela.", true);
       }
     });
@@ -416,6 +556,7 @@ export async function startVoiceCall(channel, mountEl, { user, group } = {}) {
       statusEl.textContent = "Saiu da call.";
       mountEl.querySelector(".call-controls")?.remove();
       panelEl.innerHTML = "";
+      videosEl.innerHTML = "";
     });
   } catch (error) {
     statusEl.textContent = error.message;
