@@ -18,4 +18,6 @@ class InviteCode(Base):
     used_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
     used_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
     expires_at: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
+    # "a" | "b" — time THE GANG A / B no cadastro.
+    team: Mapped[str | None] = mapped_column(String(1), nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime)

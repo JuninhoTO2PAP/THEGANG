@@ -47,7 +47,8 @@ export async function startVoiceCall(channel, mountEl, { user, group } = {}) {
     !!user &&
     (user.is_admin ||
       group?.created_by === user.id ||
-      can(group?.my_permissions || 0, Perm.ADMINISTRATOR));
+      can(group?.my_permissions || 0, Perm.ADMINISTRATOR) ||
+      can(group?.my_permissions || 0, Perm.START_EVENTS));
 
   mountEl.innerHTML = `
     <div class="call-stage">
@@ -188,8 +189,9 @@ export async function startVoiceCall(channel, mountEl, { user, group } = {}) {
         <div class="event-card idle">
           <div class="event-card-head">
             <strong>Evento da call</strong>
-            <span>Só o dono inicia</span>
+            <span>CPT ou dono inicia</span>
           </div>
+          <p class="hint">Escolha o tipo e comece o timer da call.</p>
           <div class="event-type-row">
             <button type="button" class="event-type-btn" data-start="diario">Diário</button>
             <button type="button" class="event-type-btn intensivo" data-start="intensivo">Intensivo</button>
@@ -200,9 +202,9 @@ export async function startVoiceCall(channel, mountEl, { user, group } = {}) {
         <div class="event-card idle">
           <div class="event-card-head">
             <strong>Evento da call</strong>
-            <span>Aguardando o dono</span>
+            <span>Aguardando CPT</span>
           </div>
-          <p class="hint">Só o dono do grupo pode iniciar Diário, Intensivo ou Campeonato.</p>
+          <p class="hint">Só quem tem cargo CPT (ou o dono do app) inicia Diário, Intensivo ou Campeonato.</p>
         </div>`;
       panelEl.querySelectorAll("[data-start]").forEach((btn) => {
         btn.addEventListener("click", () => startEvent(btn.dataset.start));

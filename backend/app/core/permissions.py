@@ -9,6 +9,7 @@ class Perm:
     MANAGE_GROUP = 1 << 4
     CONNECT_VOICE = 1 << 5
     KICK_MEMBERS = 1 << 6
+    START_EVENTS = 1 << 7  # CPT: inicia Diário / Intensivo / Campeonato
     ADMINISTRATOR = 1 << 30
 
 
@@ -20,9 +21,13 @@ MEMBER_PERMS = (
 
 ADMIN_PERMS = Perm.ADMINISTRATOR
 
+# CPT: voz + mensagens + iniciar eventos da call.
+CPT_PERMS = MEMBER_PERMS | Perm.START_EVENTS
+
 ROLE_PRESETS = {
     "member": MEMBER_PERMS,
     "admin": ADMIN_PERMS,
+    "cpt": CPT_PERMS,
 }
 
 

@@ -28,7 +28,7 @@ const COLOR_PRESETS = [
   "#95a5a6",
 ];
 
-export function openGroupSettings(group, { onChanged, onDeleted }) {
+export function openGroupSettings(group, { onChanged, onDeleted, user } = {}) {
   closeModal();
   document.getElementById("tg-gs")?.remove();
 
@@ -38,6 +38,7 @@ export function openGroupSettings(group, { onChanged, onDeleted }) {
   let channels = [];
   let selectedRoleId = null;
   let current = { ...group };
+  const appOwner = Boolean(user?.is_admin);
 
   const overlay = document.createElement("div");
   overlay.id = "tg-gs";
@@ -484,13 +485,27 @@ export function openGroupSettings(group, { onChanged, onDeleted }) {
   function paintMembers() {
     const manage = can(current.my_permissions, Perm.MANAGE_ROLES);
     const assignable = roles.filter((role) => !role.is_default);
+    const isTeamA = current.name === "THE GANG A";
+    const isTeamB = current.name === "THE GANG B";
+    const otherTeam = isTeamA ? "b" : isTeamB ? "a" : null;
+    const otherLabel = otherTeam === "b" ? "THE GANG B" : "THE GANG A";
+
     body.innerHTML = `
       <div class="gs-toolbar">
         <input type="search" id="member-filter" placeholder="Filtrar por nome ou @" />
         <span class="gs-count">${members.length} membros</span>
       </div>
+      ${
+        appOwner && otherTeam
+          ? `<p class="gs-hint">Como dono, você pode mover membros para <strong>${otherLabel}</strong> e só você atribui CPT.</p>`
+          : ""
+      }
       <div class="gs-member-list" id="member-list">
-        ${members.map((m) => memberCard(m, assignable, manage)).join("") || `<p class="gs-empty">Nenhum membro.</p>`}
+        ${
+          members
+            .map((m) => memberCard(m, assignable, manage, otherTeam, otherLabel))
+            .join("") || `<p class="gs-empty">Nenhum membro.</p>`
+        }
       </div>
     `;
 
@@ -521,25 +536,47 @@ export function openGroupSettings(group, { onChanged, onDeleted }) {
         }
       });
     });
+
+    body.querySelectorAll("[data-transfer]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const userId = Number(button.dataset.transfer);
+        const toTeam = button.dataset.toTeam;
+        if (!confirm(`Mover este membro para ${otherLabel}?`)) return;
+        try {
+          const result = await api("/api/groups/transfer-team", {
+            method: "POST",
+            body: { user_id: userId, to_team: toTeam },
+          });
+          toast(`Movido para ${result.to_group}.`);
+          await load();
+          onChanged?.();
+        } catch (error) {
+          toast(error.message, true);
+        }
+      });
+    });
   }
 
-  function memberCard(member, assignable, manage) {
+  function memberCard(member, assignable, manage, otherTeam, otherLabel) {
     const url = mediaUrl(member.avatar_url);
     const avatar = url
       ? `<img src="${escapeAttr(url)}" class="avatar-img" alt="" />`
       : initials(member.nickname);
     const online = member.is_online ? "online" : "offline";
     const selects = assignable
-      .map(
-        (role) => `
+      .map((role) => {
+        const isCpt = role.name === "CPT";
+        const canToggle = manage && (!isCpt || appOwner);
+        return `
         <label class="chip-check">
           <input type="checkbox" data-user="${member.id}" data-role="${role.id}"
             ${member.role_ids.includes(role.id) ? "checked" : ""}
-            ${manage ? "" : "disabled"} />
-          <span style="color:${escapeAttr(role.color)}">${escapeHtml(role.name)}</span>
-        </label>`
-      )
+            ${canToggle ? "" : "disabled"} />
+          <span style="color:${escapeAttr(role.color)}">${escapeHtml(role.name)}${isCpt ? " ★" : ""}</span>
+        </label>`;
+      })
       .join("");
+    const showTransfer = appOwner && otherTeam && !member.is_admin && member.id !== user?.id;
     return `
       <article class="gs-member-card" data-search="${escapeAttr(`${member.nickname} ${member.username}`.toLowerCase())}">
         <div class="gs-member-top">
@@ -548,11 +585,18 @@ export function openGroupSettings(group, { onChanged, onDeleted }) {
             <strong>${escapeHtml(member.nickname)}</strong>
             <span>@${escapeHtml(member.username)} · ${online}</span>
           </div>
-          ${
-            manage
-              ? `<button type="button" class="btn btn-secondary" data-save-roles="${member.id}">Salvar</button>`
-              : ""
-          }
+          <div class="gs-member-actions">
+            ${
+              showTransfer
+                ? `<button type="button" class="btn btn-ghost" data-transfer="${member.id}" data-to-team="${otherTeam}">→ ${escapeHtml(otherLabel)}</button>`
+                : ""
+            }
+            ${
+              manage
+                ? `<button type="button" class="btn btn-secondary" data-save-roles="${member.id}">Salvar</button>`
+                : ""
+            }
+          </div>
         </div>
         <div class="role-checks">${selects || `<span class="gs-hint">Só @everyone</span>`}</div>
       </article>`;

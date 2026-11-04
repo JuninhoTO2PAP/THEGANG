@@ -159,6 +159,7 @@ export function renderChat(container, user, { onOpenSettings, onLogout }) {
   settingsBtn.addEventListener("click", () => {
     if (!activeGroup) return;
     openGroupSettings(activeGroup, {
+      user,
       onChanged: async () => {
         await openGroup(activeGroup.id);
       },
@@ -1111,7 +1112,9 @@ export function renderChat(container, user, { onOpenSettings, onLogout }) {
       return;
     }
     const defaultGroup =
-      groups.find((g) => g.name === "the-gang") || groups[0];
+      groups.find((g) => g.name === "THE GANG A") ||
+      groups.find((g) => g.name === "the-gang") ||
+      groups[0];
     if (defaultGroup) {
       await openGroup(defaultGroup.id);
       return;

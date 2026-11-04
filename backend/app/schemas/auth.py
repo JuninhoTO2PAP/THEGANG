@@ -76,6 +76,8 @@ class LogoutRequest(BaseModel):
 class InviteCreate(BaseModel):
     # 0 = nunca expira (expires_at fica null).
     expires_in_days: int = Field(default=7, ge=0, le=90)
+    # Time no cadastro: a = THE GANG A, b = THE GANG B.
+    team: str = Field(default="a", pattern="^[ab]$")
 
 
 class InvitePublic(BaseModel):
@@ -87,4 +89,5 @@ class InvitePublic(BaseModel):
     used_by: int | None
     used_at: datetime | None
     expires_at: datetime | None
+    team: str | None = None
     created_at: datetime

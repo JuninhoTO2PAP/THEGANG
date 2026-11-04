@@ -137,6 +137,11 @@ class MemberRolesUpdate(BaseModel):
     role_ids: list[int]
 
 
+class TeamTransferRequest(BaseModel):
+    user_id: int
+    to_team: str = Field(pattern="^[ab]$")
+
+
 class MessageAuthor(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

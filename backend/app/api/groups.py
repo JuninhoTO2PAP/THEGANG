@@ -22,6 +22,7 @@ from app.schemas.group import (
     RoleCreate,
     RolePublic,
     RoleUpdate,
+    TeamTransferRequest,
 )
 from app.services import group_service
 
@@ -60,6 +61,8 @@ def list_groups(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ) -> list[GroupPublic]:
+    if user.is_admin:
+        group_service.ensure_team_groups(db, owner=user)
     return [_group_public(g, p) for g, p in group_service.list_groups_for_user(db, user)]
 
 
@@ -82,6 +85,18 @@ def join_group(
     group = group_service.join_group_by_code(db, user, body.code)
     perms = group_service._member_permissions(db, group.id, user.id)
     return _group_public(group, perms)
+
+
+@router.post("/transfer-team")
+def transfer_team(
+    body: TeamTransferRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    """Sobe/desce membro entre THE GANG A e THE GANG B (só dono do app)."""
+    return group_service.transfer_member_team(
+        db, user, target_user_id=body.user_id, to_team=body.to_team
+    )
 
 
 @router.patch("/{group_id}", response_model=GroupPublic)

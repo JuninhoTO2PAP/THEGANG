@@ -787,9 +787,15 @@ function accentBlock() {
 async function paintInvites(body) {
   body.innerHTML = `
     <h2>Convites</h2>
-    <p class="section-lead">Gere um código e envie para a pessoa. Cada convite vale uma vez.</p>
+    <p class="section-lead">Gere um código e envie para a pessoa. Cada convite vale uma vez e já define o time (A ou B).</p>
     <div class="invite-block">
       <form id="invite-form" class="stack" style="margin-bottom:12px">
+        <label>Time
+          <select name="team">
+            <option value="a" selected>THE GANG A</option>
+            <option value="b">THE GANG B</option>
+          </select>
+        </label>
         <label>Validade
           <select name="expires_in_days">
             <option value="1">1 dia</option>
@@ -825,7 +831,7 @@ async function paintInvites(body) {
                 <span class="badge ${used ? "used" : "ok"}">${used ? "Usado" : "Disponível"}</span>
                 <button type="button" class="btn btn-ghost" data-copy="${invite.code}">Copiar</button>
               </div>
-              <div class="soon">${invite.expires_at ? `Expira: ${formatDay(invite.expires_at)}` : "Validade: nunca expira"}</div>
+              <div class="soon">Time ${String(invite.team || "a").toUpperCase()} · ${invite.expires_at ? `Expira: ${formatDay(invite.expires_at)}` : "nunca expira"}</div>
             </div>
           `;
         })
@@ -847,11 +853,16 @@ async function paintInvites(body) {
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const days = Number(new FormData(form).get("expires_in_days"));
+    const data = new FormData(form);
+    const days = Number(data.get("expires_in_days"));
+    const team = String(data.get("team") || "a");
     try {
       const invite = await api("/api/auth/invites", {
         method: "POST",
-        body: { expires_in_days: Number.isFinite(days) ? days : 7 },
+        body: {
+          expires_in_days: Number.isFinite(days) ? days : 7,
+          team: team === "b" ? "b" : "a",
+        },
       });
       toast(`Convite: ${invite.code}`);
       await load();

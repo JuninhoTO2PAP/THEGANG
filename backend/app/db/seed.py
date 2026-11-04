@@ -15,7 +15,6 @@ from sqlalchemy.orm import Session
 from app.core.security import hash_password
 from app.db.session import SessionLocal, engine
 from app.models import User
-from app.services.group_service import ensure_default_group
 from app.services.home_service import ensure_home
 from app.utils.time import utcnow
 
@@ -47,7 +46,9 @@ def run_seed(db: Session) -> bool:
         db.refresh(existing)
         created = True
 
-    ensure_default_group(db, owner=existing)
+    from app.services.group_service import ensure_team_groups
+
+    ensure_team_groups(db, owner=existing)
     ensure_home(db)
     return created
 

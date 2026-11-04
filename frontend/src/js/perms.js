@@ -8,6 +8,7 @@ export const Perm = {
   MANAGE_GROUP: 1 << 4,
   CONNECT_VOICE: 1 << 5,
   KICK_MEMBERS: 1 << 6,
+  START_EVENTS: 1 << 7,
   ADMINISTRATOR: 1 << 30,
 };
 
@@ -46,6 +47,11 @@ export const PERM_OPTIONS = [
     flag: Perm.KICK_MEMBERS,
     label: "Expulsar membros",
     help: "Remove pessoas do grupo (quando ativo).",
+  },
+  {
+    flag: Perm.START_EVENTS,
+    label: "Iniciar eventos (CPT)",
+    help: "Inicia Diário, Intensivo e Campeonato na call.",
   },
   {
     flag: Perm.ADMINISTRATOR,

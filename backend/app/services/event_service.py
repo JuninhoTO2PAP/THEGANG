@@ -24,6 +24,14 @@ def _is_group_owner(db: Session, group_id: int, user: User) -> bool:
     return has_perm(perms, Perm.ADMINISTRATOR)
 
 
+def _can_start_event(db: Session, group_id: int, user: User) -> bool:
+    """Dono do app / dono do grupo / Admin / CPT (START_EVENTS)."""
+    if _is_group_owner(db, group_id, user):
+        return True
+    perms = group_service._member_permissions(db, group_id, user.id)
+    return has_perm(perms, Perm.START_EVENTS)
+
+
 def _elapsed(event: MatchEvent) -> int:
     end = event.ended_at or utcnow()
     return max(0, int((end - event.started_at).total_seconds()))
@@ -113,8 +121,11 @@ def start_event(db: Session, user: User, data: EventStart) -> dict:
     channel = group_service.get_channel_in_group(db, user, data.channel_id)
     if channel.channel_type != "voice":
         raise AppError(400, "Eventos só começam em canal de voz.")
-    if not _is_group_owner(db, channel.group_id, user):
-        raise AppError(403, "Só o dono pode iniciar Diário, Intensivo ou Campeonato.")
+    if not _can_start_event(db, channel.group_id, user):
+        raise AppError(
+            403,
+            "Só o CPT ou o dono pode iniciar Diário, Intensivo ou Campeonato.",
+        )
     existing = db.scalar(
         select(MatchEvent).where(
             MatchEvent.channel_id == channel.id,

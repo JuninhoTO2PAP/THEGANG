@@ -5,7 +5,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 from app.core.errors import AppError
-from app.core.permissions import ADMIN_PERMS, MEMBER_PERMS, Perm, has_perm
+from app.core.permissions import ADMIN_PERMS, CPT_PERMS, MEMBER_PERMS, Perm, has_perm
 from app.models import (
     Channel,
     Group,
@@ -66,36 +66,109 @@ def list_groups_for_user(db: Session, user: User) -> list[tuple[Group, int]]:
     return [(group, _member_permissions(db, group.id, user.id)) for group in groups]
 
 
-DEFAULT_GROUP_NAME = "the-gang"
-DEFAULT_GROUP_DESCRIPTION = "Grupo principal do THE GANG — entre pelo convite do admin."
+DEFAULT_GROUP_NAME = "the-gang"  # legado
+TEAM_A_NAME = "THE GANG A"
+TEAM_B_NAME = "THE GANG B"
+TEAM_NAMES = (TEAM_A_NAME, TEAM_B_NAME)
+PROTECTED_GROUP_NAMES = {DEFAULT_GROUP_NAME, TEAM_A_NAME, TEAM_B_NAME}
+
+
+def team_name(team: str) -> str:
+    key = (team or "a").strip().lower()
+    if key == "b":
+        return TEAM_B_NAME
+    return TEAM_A_NAME
+
+
+def _ensure_cpt_role(db: Session, group: Group) -> Role:
+    now = utcnow()
+    role = db.scalar(
+        select(Role).where(Role.group_id == group.id, Role.name == "CPT")
+    )
+    if role is None:
+        role = Role(
+            group_id=group.id,
+            name="CPT",
+            color="#f0b232",
+            position=50,
+            permissions=CPT_PERMS,
+            is_default=False,
+            created_at=now,
+        )
+        db.add(role)
+        db.flush()
+    elif role.permissions != CPT_PERMS:
+        role.permissions = CPT_PERMS
+        db.add(role)
+    return role
+
+
+def _ensure_owner_in_group(db: Session, group: Group, owner: User) -> None:
+    now = utcnow()
+    membership = db.get(GroupMember, (group.id, owner.id))
+    if membership is None:
+        db.add(GroupMember(group_id=group.id, user_id=owner.id, joined_at=now))
+    admin_role = db.scalar(
+        select(Role).where(Role.group_id == group.id, Role.name == "Admin")
+    )
+    if admin_role is not None:
+        link = db.scalar(
+            select(MemberRole).where(
+                MemberRole.role_id == admin_role.id, MemberRole.user_id == owner.id
+            )
+        )
+        if link is None:
+            db.add(MemberRole(role_id=admin_role.id, user_id=owner.id))
 
 
 def ensure_default_group(db: Session, owner: User | None = None) -> Group:
-    """Garante o grupo público padrão onde novos membros entram no cadastro."""
-    existing = db.scalar(select(Group).where(Group.name == DEFAULT_GROUP_NAME))
-    if existing is not None:
-        if existing.is_private:
-            existing.is_private = False
-            db.add(existing)
-            db.flush()
-        return existing
+    """Compat: devolve o time A (e garante A+B)."""
+    a, _b = ensure_team_groups(db, owner=owner)
+    return a
 
+
+def ensure_team_groups(
+    db: Session, owner: User | None = None
+) -> tuple[Group, Group]:
+    """Garante THE GANG A e THE GANG B; o dono do app fica nos dois."""
     creator = owner if owner is not None and owner.is_admin else None
     if creator is None:
         creator = db.scalar(select(User).where(User.is_admin.is_(True)).order_by(User.id))
     if creator is None:
-        raise AppError(500, "Não há administrador para criar o grupo padrão.")
+        raise AppError(500, "Não há administrador para criar os times.")
 
-    group, _ = create_group(
-        db,
-        creator,
-        GroupCreate(
-            name=DEFAULT_GROUP_NAME,
-            description=DEFAULT_GROUP_DESCRIPTION,
-            is_private=False,
-        ),
-    )
-    return group
+    legacy = db.scalar(select(Group).where(Group.name == DEFAULT_GROUP_NAME))
+    if legacy is not None:
+        legacy.name = TEAM_A_NAME
+        legacy.description = "Time A do THE GANG"
+        db.add(legacy)
+        db.flush()
+
+    groups: list[Group] = []
+    for name, description in (
+        (TEAM_A_NAME, "Time A do THE GANG"),
+        (TEAM_B_NAME, "Time B do THE GANG"),
+    ):
+        existing = db.scalar(select(Group).where(Group.name == name))
+        if existing is None:
+            group, _ = create_group(
+                db,
+                creator,
+                GroupCreate(name=name, description=description, is_private=True),
+            )
+        else:
+            group = existing
+            if not group.description:
+                group.description = description
+                db.add(group)
+        _ensure_cpt_role(db, group)
+        _ensure_owner_in_group(db, group, creator)
+        groups.append(group)
+
+    db.commit()
+    for g in groups:
+        db.refresh(g)
+    return groups[0], groups[1]
 
 
 def create_group(db: Session, user: User, data: GroupCreate) -> tuple[Group, int]:
@@ -135,7 +208,16 @@ def create_group(db: Session, user: User, data: GroupCreate) -> tuple[Group, int
         is_default=False,
         created_at=now,
     )
-    db.add_all([everyone, admin_role])
+    cpt_role = Role(
+        group_id=group.id,
+        name="CPT",
+        color="#f0b232",
+        position=50,
+        permissions=CPT_PERMS,
+        is_default=False,
+        created_at=now,
+    )
+    db.add_all([everyone, admin_role, cpt_role])
     db.flush()
 
     members = [user] if data.is_private else list(db.scalars(select(User)).all())
@@ -189,8 +271,8 @@ def delete_group(db: Session, user: User, group_id: int) -> None:
     require_perm(db, group_id, user, Perm.MANAGE_GROUP)
     group = db.get(Group, group_id)
     assert group is not None
-    if group.name == DEFAULT_GROUP_NAME:
-        raise AppError(400, "O grupo padrão THE GANG não pode ser apagado.")
+    if group.name in PROTECTED_GROUP_NAMES:
+        raise AppError(400, "Os times THE GANG A/B não podem ser apagados.")
     if not user.is_admin and group.created_by != user.id:
         my = _member_permissions(db, group_id, user.id)
         if not has_perm(my, Perm.ADMINISTRATOR):
@@ -569,6 +651,8 @@ def set_member_roles(
         my, Perm.ADMINISTRATOR
     ):
         raise AppError(403, "Só Admin pode atribuir cargo Admin.")
+    if any(role.name == "CPT" for role in roles) and not actor.is_admin:
+        raise AppError(403, "Só o dono do app pode atribuir o cargo CPT.")
 
     # Remove cargos atuais do grupo (exceto não há member_role para default).
     current_ids = list(
@@ -605,13 +689,74 @@ def set_member_roles(
 
 
 def add_user_to_public_groups(db: Session, user: User) -> None:
-    """No cadastro, entra em todos os grupos públicos com cargo padrão."""
+    """Legado: não usa mais no cadastro (cadastro vai para time A ou B)."""
     now = utcnow()
     publics = db.scalars(select(Group).where(Group.is_private.is_(False))).all()
     for group in publics:
         exists = db.get(GroupMember, (group.id, user.id))
         if exists is None:
             db.add(GroupMember(group_id=group.id, user_id=user.id, joined_at=now))
+
+
+def add_user_to_team(db: Session, user: User, team: str) -> Group:
+    """Coloca o usuário só no time A ou B (cargo padrão @everyone)."""
+    ensure_team_groups(db)
+    name = team_name(team)
+    group = db.scalar(select(Group).where(Group.name == name))
+    if group is None:
+        raise AppError(500, f"Time {name} não encontrado.")
+    now = utcnow()
+    if db.get(GroupMember, (group.id, user.id)) is None:
+        db.add(GroupMember(group_id=group.id, user_id=user.id, joined_at=now))
+    return group
+
+
+def transfer_member_team(
+    db: Session, actor: User, *, target_user_id: int, to_team: str
+) -> dict:
+    """Dono do app sobe/desce membro entre THE GANG A e THE GANG B."""
+    if not actor.is_admin:
+        raise AppError(403, "Só o dono do app pode mover membros entre times.")
+    target = db.get(User, target_user_id)
+    if target is None:
+        raise AppError(404, "Usuário não encontrado.")
+    if target.is_admin:
+        raise AppError(400, "O dono do app já está nos dois times.")
+
+    team_a, team_b = ensure_team_groups(db, owner=actor)
+    dest = team_b if (to_team or "a").lower() == "b" else team_a
+    source = team_a if dest.id == team_b.id else team_b
+
+    now = utcnow()
+    # Remove cargos + membership no time de origem (se estiver).
+    src_role_ids = list(
+        db.scalars(
+            select(MemberRole.role_id)
+            .join(Role, Role.id == MemberRole.role_id)
+            .where(MemberRole.user_id == target.id, Role.group_id == source.id)
+        ).all()
+    )
+    if src_role_ids:
+        db.execute(
+            delete(MemberRole).where(
+                MemberRole.user_id == target.id, MemberRole.role_id.in_(src_role_ids)
+            )
+        )
+    src_member = db.get(GroupMember, (source.id, target.id))
+    if src_member is not None:
+        db.delete(src_member)
+
+    if db.get(GroupMember, (dest.id, target.id)) is None:
+        db.add(GroupMember(group_id=dest.id, user_id=target.id, joined_at=now))
+    db.commit()
+    return {
+        "user_id": target.id,
+        "username": target.username,
+        "nickname": target.nickname,
+        "from_group": source.name,
+        "to_group": dest.name,
+        "to_team": "b" if dest.name == TEAM_B_NAME else "a",
+    }
 
 
 def create_group_invite(

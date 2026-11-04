@@ -1406,6 +1406,13 @@ textarea {
   color: #fff;
 }
 
+.gs-member-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-left: auto;
+}
+
 .status-picker {
   display: grid;
   gap: 10px;

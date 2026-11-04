@@ -19,7 +19,6 @@ from app.core.security import (
 )
 from app.models import InviteCode, RefreshToken, User
 from app.schemas.auth import InviteCreate, LoginRequest, RegisterRequest, TokenPair
-from app.services.group_service import add_user_to_public_groups, ensure_default_group
 from app.utils.time import utcnow
 
 _INVITE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
@@ -101,8 +100,10 @@ def register_user(db: Session, data: RegisterRequest) -> tuple[User, TokenPair]:
 
     invite.used_by = user.id
     invite.used_at = now
-    ensure_default_group(db, owner=db.get(User, invite.created_by))
-    add_user_to_public_groups(db, user)
+    from app.services import group_service
+
+    group_service.ensure_team_groups(db, owner=db.get(User, invite.created_by))
+    group_service.add_user_to_team(db, user, getattr(invite, "team", None) or "a")
 
     tokens = issue_tokens(db, user)
     try:
@@ -192,6 +193,12 @@ def logout_user(db: Session, refresh_token: str) -> None:
 
 def create_invite(db: Session, admin: User, data: InviteCreate) -> InviteCode:
     now = utcnow()
+    from app.services import group_service
+
+    group_service.ensure_team_groups(db, owner=admin)
+    team = (data.team or "a").lower()
+    if team not in {"a", "b"}:
+        raise AppError(400, "Time deve ser A ou B.")
     invite = InviteCode(
         code=_new_invite_code(db),
         created_by=admin.id,
@@ -202,6 +209,7 @@ def create_invite(db: Session, admin: User, data: InviteCreate) -> InviteCode:
             if data.expires_in_days == 0
             else now + timedelta(days=data.expires_in_days)
         ),
+        team=team,
         created_at=now,
     )
     db.add(invite)
