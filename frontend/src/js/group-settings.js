@@ -665,10 +665,15 @@ export function openGroupSettings(group, { onChanged, onDeleted }) {
       <div class="gs-two-col">
         <form id="invite-form" class="gs-form cardish">
           <div class="gs-section-label">Novo link</div>
-          <label>Validade (dias)
-            <input name="expires_in_days" type="number" min="1" max="90" value="7" placeholder="vazio = ilimitado" />
+          <label>Validade
+            <select name="expires_in_days">
+              <option value="1">1 dia</option>
+              <option value="3">3 dias</option>
+              <option value="7" selected>7 dias</option>
+              <option value="30">30 dias</option>
+              <option value="0">Nunca expira</option>
+            </select>
           </label>
-          <p class="gs-hint">Deixe validade em branco para convite sem expiração.</p>
           <label>Máximo de usos
             <input name="max_uses" type="number" min="1" max="1000" placeholder="Ilimitado" />
           </label>
@@ -683,7 +688,7 @@ export function openGroupSettings(group, { onChanged, onDeleted }) {
                   inv.max_uses != null ? `${inv.uses}/${inv.max_uses} usos` : `${inv.uses} usos`;
                 const exp = inv.expires_at
                   ? `expira ${new Date(inv.expires_at).toLocaleDateString("pt-BR")}`
-                  : "sem expiração";
+                  : "nunca expira";
                 return `
                   <div class="gs-invite-card">
                     <div>
@@ -704,12 +709,12 @@ export function openGroupSettings(group, { onChanged, onDeleted }) {
       event.preventDefault();
       const data = new FormData(event.target);
       const maxRaw = String(data.get("max_uses") || "").trim();
-      const daysRaw = String(data.get("expires_in_days") || "").trim();
+      const days = Number(data.get("expires_in_days"));
       try {
         await api(`/api/groups/${current.id}/invites`, {
           method: "POST",
           body: {
-            expires_in_days: daysRaw ? Number(daysRaw) : null,
+            expires_in_days: Number.isFinite(days) ? days : 7,
             max_uses: maxRaw ? Number(maxRaw) : null,
           },
         });
