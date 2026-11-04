@@ -666,8 +666,9 @@ export function openGroupSettings(group, { onChanged, onDeleted }) {
         <form id="invite-form" class="gs-form cardish">
           <div class="gs-section-label">Novo link</div>
           <label>Validade (dias)
-            <input name="expires_in_days" type="number" min="1" max="90" value="7" />
+            <input name="expires_in_days" type="number" min="1" max="90" value="7" placeholder="vazio = ilimitado" />
           </label>
+          <p class="gs-hint">Deixe validade em branco para convite sem expiração.</p>
           <label>Máximo de usos
             <input name="max_uses" type="number" min="1" max="1000" placeholder="Ilimitado" />
           </label>
@@ -703,11 +704,12 @@ export function openGroupSettings(group, { onChanged, onDeleted }) {
       event.preventDefault();
       const data = new FormData(event.target);
       const maxRaw = String(data.get("max_uses") || "").trim();
+      const daysRaw = String(data.get("expires_in_days") || "").trim();
       try {
         await api(`/api/groups/${current.id}/invites`, {
           method: "POST",
           body: {
-            expires_in_days: Number(data.get("expires_in_days") || 7),
+            expires_in_days: daysRaw ? Number(daysRaw) : null,
             max_uses: maxRaw ? Number(maxRaw) : null,
           },
         });

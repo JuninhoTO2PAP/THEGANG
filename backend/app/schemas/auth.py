@@ -74,7 +74,8 @@ class LogoutRequest(BaseModel):
 
 
 class InviteCreate(BaseModel):
-    expires_in_days: int = Field(default=7, ge=1, le=90)
+    # None = sem expiração (ilimitado).
+    expires_in_days: int | None = Field(default=7, ge=1, le=90)
 
 
 class InvitePublic(BaseModel):

@@ -197,7 +197,11 @@ def create_invite(db: Session, admin: User, data: InviteCreate) -> InviteCode:
         created_by=admin.id,
         used_by=None,
         used_at=None,
-        expires_at=now + timedelta(days=data.expires_in_days),
+        expires_at=(
+            now + timedelta(days=data.expires_in_days)
+            if data.expires_in_days is not None
+            else None
+        ),
         created_at=now,
     )
     db.add(invite)

@@ -199,7 +199,7 @@ class ReactionCreate(BaseModel):
 
 
 class GroupInviteCreate(BaseModel):
-    expires_in_days: int = Field(default=7, ge=1, le=90)
+    expires_in_days: int | None = Field(default=7, ge=1, le=90)
     max_uses: int | None = Field(default=None, ge=1, le=1000)
 
 

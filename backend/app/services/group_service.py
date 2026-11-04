@@ -619,7 +619,7 @@ def create_group_invite(
     user: User,
     group_id: int,
     *,
-    expires_in_days: int = 7,
+    expires_in_days: int | None = 7,
     max_uses: int | None = None,
 ):
     import secrets
@@ -636,7 +636,11 @@ def create_group_invite(
         created_by=user.id,
         max_uses=max_uses,
         uses=0,
-        expires_at=now + timedelta(days=expires_in_days),
+        expires_at=(
+            now + timedelta(days=expires_in_days)
+            if expires_in_days is not None
+            else None
+        ),
         created_at=now,
     )
     db.add(invite)

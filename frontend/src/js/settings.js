@@ -796,6 +796,7 @@ async function paintInvites(body) {
             <option value="3">3 dias</option>
             <option value="7" selected>7 dias</option>
             <option value="30">30 dias</option>
+            <option value="">Ilimitado</option>
           </select>
         </label>
         <button class="btn btn-primary" type="submit">Gerar convite</button>
@@ -824,7 +825,7 @@ async function paintInvites(body) {
                 <span class="badge ${used ? "used" : "ok"}">${used ? "Usado" : "Disponível"}</span>
                 <button type="button" class="btn btn-ghost" data-copy="${invite.code}">Copiar</button>
               </div>
-              <div class="soon">Expira: ${invite.expires_at ? formatDay(invite.expires_at) : "—"}</div>
+              <div class="soon">Expira: ${invite.expires_at ? formatDay(invite.expires_at) : "Ilimitado"}</div>
             </div>
           `;
         })
@@ -846,7 +847,8 @@ async function paintInvites(body) {
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const days = Number(new FormData(form).get("expires_in_days"));
+    const raw = String(new FormData(form).get("expires_in_days") ?? "").trim();
+    const days = raw === "" ? null : Number(raw);
     try {
       const invite = await api("/api/auth/invites", {
         method: "POST",
