@@ -12,6 +12,15 @@ let offEventWs = null;
 let stageRoot = null;
 let joinedChannelId = null;
 let dockNode = null;
+let rosterWatch = null;
+
+export function onCallRoster(fn) {
+  rosterWatch = fn;
+}
+
+function publishRoster(payload) {
+  rosterWatch?.(payload);
+}
 
 export function setCallDock(el) {
   dockNode = el;
@@ -401,13 +410,13 @@ export async function startVoiceCall(channel, mountEl, { user, group } = {}) {
       for (const p of room.remoteParticipants.values()) {
         ensureTile(p, "user");
       }
-      const total = 1 + room.remoteParticipants.size;
-      const names = [
-        displayName(room.localParticipant),
-        ...[...room.remoteParticipants.values()].map(displayName),
-      ];
-      statusEl.textContent = `${total} na call · ${channel.name}`;
-      statusEl.title = names.join(", ");
+      const people = [room.localParticipant, ...room.remoteParticipants.values()].map((p) => ({
+        identity: p.identity,
+        name: displayName(p),
+      }));
+      statusEl.textContent = `${people.length} na call · ${channel.name}`;
+      statusEl.title = people.map((p) => p.name).join(", ");
+      publishRoster({ channelId: channel.id, people });
     };
 
     const screenPubs = new Map();
@@ -706,6 +715,7 @@ export async function leaveVoiceCall() {
   stageRoot?.remove();
   stageRoot = null;
   joinedChannelId = null;
+  publishRoster(null);
   if (dockNode) {
     dockNode.hidden = true;
     dockNode.innerHTML = "";

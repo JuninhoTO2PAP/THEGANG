@@ -8,7 +8,7 @@ import { Perm, can } from "./perms.js";
 import { gangEmojiPickerHtml, QUICK_REACTS } from "./gang-emojis.js";
 import { playMention } from "./sounds.js";
 import { formatDay, formatTime, ffRoleLabel, initials, toast } from "./ui.js";
-import { focusCall, joinedCallId, leaveVoiceCall, parkCall, setCallDock, startVoiceCall } from "./voice-call.js";
+import { focusCall, joinedCallId, leaveVoiceCall, onCallRoster, parkCall, setCallDock, startVoiceCall } from "./voice-call.js";
 import {
   connectWs,
   onWs,
@@ -34,6 +34,8 @@ export function renderChat(container, user, { onOpenSettings, onLogout }) {
   let typingUsers = new Map();
   let typingTimer = null;
   let offlineIds = new Set();
+  let callPeople = [];
+  let callChannelId = null;
   let pendingJoin = sessionStorage.getItem("tg_join_code");
 
   container.innerHTML = `
@@ -284,9 +286,21 @@ export function renderChat(container, user, { onOpenSettings, onLogout }) {
           voices
             .map(
               (ch) => `
+              <div class="voice-block">
               <button type="button" class="channel-item voice ${activeChannel?.id === ch.id && mode === "channel" ? "active" : ""}" data-channel="${ch.id}">
                 <span>🔊</span><span>${escapeHtml(ch.name)}</span>
-              </button>`
+              </button>
+              ${
+                callChannelId === ch.id && callPeople.length
+                  ? `<div class="voice-people">${callPeople
+                      .map(
+                        (person) =>
+                          `<div class="voice-person"><span class="voice-dot"></span><span>${escapeHtml(person.name)}</span></div>`
+                      )
+                      .join("")}</div>`
+                  : ""
+              }
+              </div>`
             )
             .join("") ||
           `<p class="hint" style="padding:6px 10px;text-transform:none;font-weight:400">Nenhuma sala de voz.</p>`
@@ -308,6 +322,12 @@ export function renderChat(container, user, { onOpenSettings, onLogout }) {
       button.addEventListener("click", () => openChannel(Number(button.dataset.channel)));
     });
   }
+
+  onCallRoster((payload) => {
+    callPeople = payload?.people || [];
+    callChannelId = payload?.channelId ?? null;
+    if (activeGroup) paintChannels();
+  });
 
   function paintMembers() {
     if (!activeGroup || mode === "dm" || mode === "home") {
