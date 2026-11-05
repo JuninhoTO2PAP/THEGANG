@@ -896,8 +896,6 @@ def join_group_by_code(db: Session, user: User, code: str) -> Group:
 
 
 def list_group_invites(db: Session, user: User, group_id: int):
-    from app.models import GroupInvite
-
     require_perm(db, group_id, user, Perm.MANAGE_GROUP)
     return list(
         db.scalars(
@@ -906,3 +904,12 @@ def list_group_invites(db: Session, user: User, group_id: int):
             .order_by(GroupInvite.id.desc())
         ).all()
     )
+
+
+def revoke_group_invite(db: Session, user: User, group_id: int, invite_id: int) -> None:
+    require_perm(db, group_id, user, Perm.MANAGE_GROUP)
+    invite = db.get(GroupInvite, invite_id)
+    if invite is None or invite.group_id != group_id:
+        raise AppError(404, "Convite não encontrado.")
+    db.delete(invite)
+    db.commit()

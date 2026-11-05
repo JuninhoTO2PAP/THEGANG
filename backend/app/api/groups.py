@@ -243,3 +243,13 @@ def list_group_invites(
     db: Annotated[Session, Depends(get_db)],
 ) -> list[GroupInvitePublic]:
     return [_invite_public(i) for i in group_service.list_group_invites(db, user, group_id)]
+
+
+@router.delete("/{group_id}/invites/{invite_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_group_invite(
+    group_id: int,
+    invite_id: int,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> None:
+    group_service.revoke_group_invite(db, user, group_id, invite_id)

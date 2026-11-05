@@ -40,10 +40,9 @@ export function focusCall(mountEl) {
 
 export function parkCall() {
   if (!stageRoot || !dockNode) return;
-  if (stageRoot.parentElement === dockNode && stageRoot.classList.contains("compact")) return;
   stageRoot.classList.add("compact");
-  dockNode.hidden = false;
-  dockNode.replaceChildren(stageRoot);
+  dockNode.hidden = true;
+  if (stageRoot.parentElement !== dockNode) dockNode.replaceChildren(stageRoot);
 }
 
 const TYPE_LABEL = {

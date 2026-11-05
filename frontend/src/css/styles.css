@@ -543,18 +543,29 @@ textarea {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--text);
+  color: var(--muted);
   font-size: 0.86rem;
   padding: 3px 6px;
   border-radius: 4px;
+  min-width: 0;
 }
 
-.voice-dot {
+.voice-person .avatar {
+  width: 26px;
+  height: 26px;
+  font-size: 0.7rem;
+}
+
+.voice-person .avatar .dot {
   width: 8px;
   height: 8px;
-  border-radius: 50%;
-  background: var(--online);
-  flex: 0 0 auto;
+  border-width: 2px;
+}
+
+.voice-person span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .avatar {
@@ -2979,6 +2990,14 @@ textarea {
 .gs-channel-row strong,
 .gs-invite-card strong {
   display: block;
+}
+
+.gs-invite-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .gs-channel-row span,

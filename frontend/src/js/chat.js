@@ -292,12 +292,7 @@ export function renderChat(container, user, { onOpenSettings, onLogout }) {
               </button>
               ${
                 callChannelId === ch.id && callPeople.length
-                  ? `<div class="voice-people">${callPeople
-                      .map(
-                        (person) =>
-                          `<div class="voice-person"><span class="voice-dot"></span><span>${escapeHtml(person.name)}</span></div>`
-                      )
-                      .join("")}</div>`
+                  ? `<div class="voice-people">${callPeople.map((person) => callPersonHtml(person)).join("")}</div>`
                   : ""
               }
               </div>`
@@ -328,6 +323,15 @@ export function renderChat(container, user, { onOpenSettings, onLogout }) {
     callChannelId = payload?.channelId ?? null;
     if (activeGroup) paintChannels();
   });
+
+  function callPersonHtml(person) {
+    const id = Number(String(person.identity || "").replace(/^user-/, ""));
+    const member = members.find((m) => m.id === id);
+    const face = member
+      ? avatarHtml(member, true)
+      : avatarHtml({ nickname: person.name || "?", avatar_url: null }, true);
+    return `<div class="voice-person">${face}<span>${escapeHtml(member?.nickname || person.name)}</span></div>`;
+  }
 
   function paintMembers() {
     if (!activeGroup || mode === "dm" || mode === "home") {

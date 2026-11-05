@@ -742,7 +742,10 @@ export function openGroupSettings(group, { onChanged, onDeleted, user } = {}) {
                       <span>${uses} · ${exp}</span>
                       <code>${escapeHtml(link)}</code>
                     </div>
-                    <button type="button" class="btn btn-secondary" data-copy="${escapeAttr(link)}">Copiar</button>
+                    <div class="gs-invite-actions">
+                      <button type="button" class="btn btn-secondary" data-copy="${escapeAttr(link)}">Copiar</button>
+                      <button type="button" class="btn-danger-ghost" data-revoke="${inv.id}">Apagar</button>
+                    </div>
                   </div>`;
               })
               .join("") || `<p class="gs-empty">Nenhum convite ainda. Gere o primeiro à esquerda.</p>`
@@ -778,6 +781,18 @@ export function openGroupSettings(group, { onChanged, onDeleted, user } = {}) {
           toast("Link copiado.");
         } catch {
           toast(btn.dataset.copy);
+        }
+      });
+    });
+
+    body.querySelectorAll("[data-revoke]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        try {
+          await api(`/api/groups/${current.id}/invites/${btn.dataset.revoke}`, { method: "DELETE" });
+          toast("Convite apagado.");
+          paintInvites();
+        } catch (error) {
+          toast(error.message, true);
         }
       });
     });
