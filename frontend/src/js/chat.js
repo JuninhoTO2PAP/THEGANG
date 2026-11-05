@@ -8,7 +8,7 @@ import { Perm, can } from "./perms.js";
 import { gangEmojiPickerHtml, QUICK_REACTS } from "./gang-emojis.js";
 import { playMention } from "./sounds.js";
 import { formatDay, formatTime, ffRoleLabel, initials, toast } from "./ui.js";
-import { leaveVoiceCall, startVoiceCall } from "./voice-call.js";
+import { focusCall, joinedCallId, leaveVoiceCall, parkCall, setCallDock, startVoiceCall } from "./voice-call.js";
 import {
   connectWs,
   onWs,
@@ -56,6 +56,7 @@ export function renderChat(container, user, { onOpenSettings, onLogout }) {
           <button type="button" class="icon-btn" id="group-settings-btn" title="Configurações do grupo" hidden>⚙</button>
         </div>
         <div class="channel-scroll" id="channel-scroll"></div>
+        <div id="call-dock" class="call-dock" hidden></div>
         <div class="user-bar">
           ${avatarHtml(user)}
           <div class="user-meta">
@@ -116,6 +117,8 @@ export function renderChat(container, user, { onOpenSettings, onLogout }) {
   const attachInput = container.querySelector("#attach-input");
   const pinsBar = container.querySelector("#pins-bar");
   const replyBar = container.querySelector("#reply-bar");
+  const callDock = container.querySelector("#call-dock");
+  setCallDock(callDock);
 
   function setMembersVisible(visible) {
     membersPanel.hidden = !visible;
@@ -353,6 +356,7 @@ export function renderChat(container, user, { onOpenSettings, onLogout }) {
   }
 
   async function showHome() {
+    parkCall();
     mode = "home";
     activeChannel = null;
     activeDm = null;
@@ -594,6 +598,10 @@ export function renderChat(container, user, { onOpenSettings, onLogout }) {
       searchBtn.hidden = true;
       subscribeChannel(channelId);
       headerEl.innerHTML = `<span>🔊</span><span>${escapeHtml(activeChannel.name)}</span>`;
+      if (joinedCallId() === channelId && focusCall(messagesEl)) {
+        return;
+      }
+      parkCall();
       const canJoin = can(activeGroup.my_permissions, Perm.CONNECT_VOICE);
       messagesEl.innerHTML = `
         <div class="welcome">
@@ -616,6 +624,7 @@ export function renderChat(container, user, { onOpenSettings, onLogout }) {
       return;
     }
 
+    parkCall();
     composer.hidden = !can(activeGroup.my_permissions, Perm.SEND_MESSAGES);
     searchBtn.hidden = false;
     headerEl.innerHTML = `
@@ -693,6 +702,7 @@ export function renderChat(container, user, { onOpenSettings, onLogout }) {
   }
 
   async function openDm(conv) {
+    parkCall();
     activeDm = conv;
     activeGroup = null;
     activeChannel = null;

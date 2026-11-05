@@ -9,6 +9,33 @@ import { onWs } from "./ws.js";
 let activeRoom = null;
 let eventTimer = null;
 let offEventWs = null;
+let stageRoot = null;
+let joinedChannelId = null;
+let dockNode = null;
+
+export function setCallDock(el) {
+  dockNode = el;
+}
+
+export function joinedCallId() {
+  return joinedChannelId;
+}
+
+export function focusCall(mountEl) {
+  if (!stageRoot || !mountEl) return false;
+  stageRoot.classList.remove("compact");
+  mountEl.replaceChildren(stageRoot);
+  if (dockNode) dockNode.hidden = true;
+  return true;
+}
+
+export function parkCall() {
+  if (!stageRoot || !dockNode) return;
+  if (stageRoot.parentElement === dockNode && stageRoot.classList.contains("compact")) return;
+  stageRoot.classList.add("compact");
+  dockNode.hidden = false;
+  dockNode.replaceChildren(stageRoot);
+}
 
 const TYPE_LABEL = {
   diario: "Diário",
@@ -68,6 +95,8 @@ export async function startVoiceCall(channel, mountEl, { user, group } = {}) {
   const statusEl = mountEl.querySelector("#call-status");
   const videosEl = mountEl.querySelector("#call-videos");
   const panelEl = mountEl.querySelector("#event-panel");
+  stageRoot = mountEl.querySelector(".call-stage");
+  joinedChannelId = channel.id;
   let muted = false;
   let deafened = false;
   let camOn = false;
@@ -593,6 +622,13 @@ export async function leaveVoiceCall() {
   if (offEventWs) {
     offEventWs();
     offEventWs = null;
+  }
+  stageRoot?.remove();
+  stageRoot = null;
+  joinedChannelId = null;
+  if (dockNode) {
+    dockNode.hidden = true;
+    dockNode.innerHTML = "";
   }
   if (!activeRoom) return;
   try {
