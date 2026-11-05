@@ -197,12 +197,19 @@ export function renderChat(container, user, { onOpenSettings, onLogout }) {
   const offWs = onWs(handleWsEvent);
   connectWs();
 
+  function teamSlug(group) {
+    return String(group?.name || "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, "-");
+  }
+
   function teamMeta(group) {
-    const slug = group?.name || "";
-    if (slug === "the-gang-a" || slug === "THE GANG A" || slug === "the-gang") {
+    const slug = teamSlug(group);
+    if (slug === "the-gang-a" || slug === "the-gang") {
       return { label: "THE GANG A", icon: "/icons/team-a.svg", kind: "a" };
     }
-    if (slug === "the-gang-b" || slug === "THE GANG B") {
+    if (slug === "the-gang-b") {
       return { label: "THE GANG B", icon: "/icons/team-b.svg", kind: "b" };
     }
     return {
@@ -212,8 +219,27 @@ export function renderChat(container, user, { onOpenSettings, onLogout }) {
     };
   }
 
+  function railGroups() {
+    const buckets = { a: [], b: [] };
+    const rest = [];
+    for (const group of groups) {
+      const kind = teamMeta(group).kind;
+      if (kind === "a" || kind === "b") buckets[kind].push(group);
+      else rest.push(group);
+    }
+    const pick = (list) => {
+      if (list.length <= 1) return list;
+      const preferred = list.find((group) => {
+        const name = group.name || "";
+        return name !== "the-gang-a" && name !== "the-gang" && name !== "THE GANG A" && name !== "the-gang-b" && name !== "THE GANG B";
+      });
+      return [preferred || list.find((group) => group.id === activeGroup?.id) || list[0]];
+    };
+    return [...pick(buckets.a), ...rest, ...pick(buckets.b)];
+  }
+
   function paintRail() {
-    rail.innerHTML = groups
+    rail.innerHTML = railGroups()
       .map((group) => {
         const meta = teamMeta(group);
         const active = activeGroup?.id === group.id ? "active" : "";
@@ -1140,8 +1166,7 @@ export function renderChat(container, user, { onOpenSettings, onLogout }) {
       return;
     }
     const defaultGroup =
-      groups.find((g) => g.name === "the-gang-a" || g.name === "THE GANG A") ||
-      groups.find((g) => g.name === "the-gang") ||
+      groups.find((g) => teamSlug(g) === "the-gang-a" || teamSlug(g) === "the-gang") ||
       groups[0];
     if (defaultGroup) {
       await openGroup(defaultGroup.id);

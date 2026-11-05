@@ -1,6 +1,8 @@
 """Grupos, canais internos, cargos e permissões."""
 
-from sqlalchemy import delete, func, select
+import re
+
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
@@ -8,11 +10,15 @@ from app.core.errors import AppError
 from app.core.permissions import ADMIN_PERMS, CPT_PERMS, MEMBER_PERMS, Perm, has_perm
 from app.models import (
     Channel,
+    EventMvpVote,
     Group,
     GroupInvite,
     GroupMember,
+    MatchEvent,
     MemberRole,
     Message,
+    MessageReaction,
+    MessageRead,
     Role,
     User,
 )
@@ -92,8 +98,73 @@ def team_name(team: str) -> str:
     return TEAM_A_NAME
 
 
+def _norm_name(name: str) -> str:
+    return re.sub(r"\s+", "-", (name or "").strip().lower())
+
+
 def team_label(name: str) -> str:
+    key = _norm_name(name)
+    if key in {"the-gang", "the-gang-a"}:
+        return "THE GANG A"
+    if key == "the-gang-b":
+        return "THE GANG B"
     return TEAM_LABELS.get(name, name)
+
+
+# Nomes que a interface já desenha com a foto A/B. O duplicado com esse nome sai;
+# fica o grupo que ainda aparecia com iniciais (ex.: the-gang-A).
+_ALREADY_ICON = {
+    "a": {"the-gang-a", "the-gang", "THE GANG A"},
+    "b": {"the-gang-b", "THE GANG B"},
+}
+_TEAM_A_ALIASES = {"the-gang", "the-gang-a"}
+_TEAM_B_ALIASES = {"the-gang-b"}
+
+
+def _purge_group(db: Session, group: Group) -> None:
+    """Apaga um grupo duplicado sem a trava dos times oficiais."""
+    event_ids = list(db.scalars(select(MatchEvent.id).where(MatchEvent.group_id == group.id)))
+    if event_ids:
+        db.execute(delete(EventMvpVote).where(EventMvpVote.event_id.in_(event_ids)))
+        db.execute(delete(MatchEvent).where(MatchEvent.id.in_(event_ids)))
+
+    channel_ids = list(db.scalars(select(Channel.id).where(Channel.group_id == group.id)))
+    if channel_ids:
+        msg_ids = list(db.scalars(select(Message.id).where(Message.channel_id.in_(channel_ids))))
+        if msg_ids:
+            db.execute(delete(MessageReaction).where(MessageReaction.message_id.in_(msg_ids)))
+            db.execute(delete(MessageRead).where(MessageRead.message_id.in_(msg_ids)))
+            db.execute(update(Message).where(Message.reply_to_id.in_(msg_ids)).values(reply_to_id=None))
+            db.execute(delete(Message).where(Message.id.in_(msg_ids)))
+        db.execute(delete(Channel).where(Channel.id.in_(channel_ids)))
+
+    role_ids = list(db.scalars(select(Role.id).where(Role.group_id == group.id)))
+    if role_ids:
+        db.execute(delete(MemberRole).where(MemberRole.role_id.in_(role_ids)))
+        db.execute(delete(Role).where(Role.id.in_(role_ids)))
+
+    db.execute(delete(GroupInvite).where(GroupInvite.group_id == group.id))
+    db.execute(delete(GroupMember).where(GroupMember.group_id == group.id))
+    db.delete(group)
+    db.flush()
+
+
+def _collapse_team(
+    db: Session, canonical: str, aliases: set[str], already_icon: set[str]
+) -> Group | None:
+    matches = [g for g in db.scalars(select(Group)).all() if _norm_name(g.name) in aliases]
+    if not matches:
+        return None
+    plain = [g for g in matches if g.name not in already_icon]
+    keeper = min(plain or matches, key=lambda g: g.id)
+    for group in matches:
+        if group.id != keeper.id:
+            _purge_group(db, group)
+    if keeper.name != canonical:
+        keeper.name = canonical
+        db.add(keeper)
+        db.flush()
+    return keeper
 
 
 def _ensure_cpt_role(db: Session, group: Group) -> Role:
@@ -153,20 +224,8 @@ def ensure_team_groups(
     if creator is None:
         raise AppError(500, "Não há administrador para criar os times.")
 
-    # Migra nomes antigos → slugs.
-    for old_name, new_name in (
-        (DEFAULT_GROUP_NAME, TEAM_A_NAME),
-        ("THE GANG A", TEAM_A_NAME),
-        ("THE GANG B", TEAM_B_NAME),
-    ):
-        row = db.scalar(select(Group).where(Group.name == old_name))
-        if row is None:
-            continue
-        clash = db.scalar(select(Group).where(Group.name == new_name, Group.id != row.id))
-        if clash is None:
-            row.name = new_name
-            db.add(row)
-            db.flush()
+    _collapse_team(db, TEAM_A_NAME, _TEAM_A_ALIASES, _ALREADY_ICON["a"])
+    _collapse_team(db, TEAM_B_NAME, _TEAM_B_ALIASES, _ALREADY_ICON["b"])
 
     groups: list[Group] = []
     for name, description in (
@@ -295,7 +354,7 @@ def delete_group(db: Session, user: User, group_id: int) -> None:
     require_perm(db, group_id, user, Perm.MANAGE_GROUP)
     group = db.get(Group, group_id)
     assert group is not None
-    if group.name in PROTECTED_GROUP_NAMES:
+    if _norm_name(group.name) in _TEAM_A_ALIASES | _TEAM_B_ALIASES or group.name in PROTECTED_GROUP_NAMES:
         raise AppError(400, "Os times THE GANG A/B não podem ser apagados.")
     if not user.is_admin and group.created_by != user.id:
         my = _member_permissions(db, group_id, user.id)
