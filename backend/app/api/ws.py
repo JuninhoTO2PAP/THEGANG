@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.errors import AppError
 from app.core.security import decode_token
 from app.db.session import SessionLocal
-from app.models import User
+from app.models import Channel, GroupMember, User
 from app.services.ws_hub import hub
 from app.utils.time import utcnow
 
@@ -54,6 +54,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
                     "type": "hello",
                     "user_id": user_id,
                     "online_user_ids": list(hub.online_user_ids()),
+                    "voice_calls": hub.voice_calls(),
                 }
             )
         )
@@ -111,3 +112,31 @@ async def _handle(client, data: dict) -> None:
         return
     if kind == "ping":
         await client.ws.send_text(json.dumps({"type": "pong"}))
+        return
+    if kind == "voice_join":
+        channel_id = data.get("channel_id")
+        if not isinstance(channel_id, int):
+            return
+        db = SessionLocal()
+        try:
+            user = db.get(User, client.user_id)
+            channel = db.get(Channel, channel_id)
+            if user is None or channel is None or channel.channel_type != "voice":
+                return
+            member = db.get(GroupMember, (channel.group_id, user.id))
+            if member is None:
+                return
+            info = {
+                "user_id": user.id,
+                "channel_id": channel.id,
+                "group_id": channel.group_id,
+                "nickname": user.nickname,
+                "username": user.username,
+                "avatar_url": user.avatar_url,
+            }
+        finally:
+            db.close()
+        await hub.set_voice(client, info)
+        return
+    if kind == "voice_leave":
+        await hub.set_voice(client, None)

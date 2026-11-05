@@ -36,6 +36,7 @@ export function renderChat(container, user, { onOpenSettings, onLogout }) {
   let offlineIds = new Set();
   let callPeople = [];
   let callChannelId = null;
+  let voiceCalls = [];
   let pendingJoin = sessionStorage.getItem("tg_join_code");
 
   container.innerHTML = `
@@ -291,8 +292,10 @@ export function renderChat(container, user, { onOpenSettings, onLogout }) {
                 <span>🔊</span><span>${escapeHtml(ch.name)}</span>
               </button>
               ${
-                callChannelId === ch.id && callPeople.length
-                  ? `<div class="voice-people">${callPeople.map((person) => callPersonHtml(person)).join("")}</div>`
+                peopleInChannel(ch.id).length
+                  ? `<div class="voice-people">${peopleInChannel(ch.id)
+                      .map((person) => callPersonHtml(person))
+                      .join("")}</div>`
                   : ""
               }
               </div>`
@@ -324,13 +327,33 @@ export function renderChat(container, user, { onOpenSettings, onLogout }) {
     if (activeGroup) paintChannels();
   });
 
+  function peopleInChannel(channelId) {
+    const fromServer = voiceCalls.filter((person) => person.channel_id === channelId);
+    if (fromServer.length) {
+      return fromServer.map((person) => ({
+        userId: person.user_id,
+        name: person.nickname,
+        avatar_url: person.avatar_url,
+      }));
+    }
+    if (callChannelId !== channelId) return [];
+    return callPeople.map((person) => {
+      const id = Number(String(person.identity || "").replace(/^user-/, ""));
+      const member = members.find((item) => item.id === id);
+      return {
+        userId: id,
+        name: member?.nickname || person.name,
+        avatar_url: member?.avatar_url || null,
+      };
+    });
+  }
+
   function callPersonHtml(person) {
-    const id = Number(String(person.identity || "").replace(/^user-/, ""));
-    const member = members.find((m) => m.id === id);
-    const face = member
-      ? avatarHtml(member, true)
-      : avatarHtml({ nickname: person.name || "?", avatar_url: null }, true);
-    return `<div class="voice-person">${face}<span>${escapeHtml(member?.nickname || person.name)}</span></div>`;
+    const face = avatarHtml(
+      { nickname: person.name || "?", avatar_url: person.avatar_url || null },
+      true
+    );
+    return `<div class="voice-person">${face}<span>${escapeHtml(person.name || "Membro")}</span></div>`;
   }
 
   function paintMembers() {
@@ -949,6 +972,13 @@ export function renderChat(container, user, { onOpenSettings, onLogout }) {
         is_online: onlineSet.has(m.id),
       }));
       paintMembers();
+      voiceCalls = event.voice_calls || voiceCalls;
+      if (activeGroup) paintChannels();
+      return;
+    }
+    if (event.type === "voice_state") {
+      voiceCalls = event.calls || [];
+      if (activeGroup) paintChannels();
       return;
     }
     if (event.type === "presence" || event.type === "status") {

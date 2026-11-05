@@ -76,6 +76,14 @@ export function subscribeDm(dmId) {
   wsSend({ type: "subscribe_dm", dm_id: dmId });
 }
 
+export function sendVoiceJoin(channelId) {
+  wsSend({ type: "voice_join", channel_id: channelId });
+}
+
+export function sendVoiceLeave() {
+  wsSend({ type: "voice_leave" });
+}
+
 export function sendTyping({ channelId = null, dmId = null, peerIds = [] } = {}) {
   wsSend({
     type: "typing",

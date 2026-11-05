@@ -16,11 +16,13 @@ class Client:
     ws: WebSocket
     channels: set[int] = field(default_factory=set)
     dms: set[int] = field(default_factory=set)
+    voice: dict | None = None
 
 
 class ConnectionHub:
     def __init__(self) -> None:
         self._clients: dict[int, list[Client]] = defaultdict(list)
+        self._voice: dict[int, dict] = {}
         self._lock = asyncio.Lock()
 
     async def connect(self, user_id: int, ws: WebSocket) -> Client:
@@ -32,14 +34,47 @@ class ConnectionHub:
 
     async def disconnect(self, client: Client) -> bool:
         """Remove o cliente. Devolve True se o usuário ficou sem conexões."""
+        voice_changed = False
         async with self._lock:
             bucket = self._clients.get(client.user_id, [])
             if client in bucket:
                 bucket.remove(client)
+            if client.voice is not None:
+                replacement = next((other.voice for other in bucket if other.voice), None)
+                if replacement:
+                    self._voice[client.user_id] = replacement
+                else:
+                    self._voice.pop(client.user_id, None)
+                voice_changed = True
+            went_offline = False
             if not bucket and client.user_id in self._clients:
                 del self._clients[client.user_id]
-                return True
-            return False
+                self._voice.pop(client.user_id, None)
+                went_offline = True
+            calls = list(self._voice.values()) if voice_changed or went_offline else None
+        if calls is not None:
+            await self._broadcast_all({"type": "voice_state", "calls": calls})
+        return went_offline
+
+    def voice_calls(self) -> list[dict]:
+        return list(self._voice.values())
+
+    async def set_voice(self, client: Client, info: dict | None) -> None:
+        async with self._lock:
+            client.voice = info
+            if info is None:
+                replacement = next(
+                    (other.voice for other in self._clients.get(client.user_id, []) if other is not client and other.voice),
+                    None,
+                )
+                if replacement:
+                    self._voice[client.user_id] = replacement
+                else:
+                    self._voice.pop(client.user_id, None)
+            else:
+                self._voice[client.user_id] = info
+            calls = list(self._voice.values())
+        await self._broadcast_all({"type": "voice_state", "calls": calls})
 
     def is_online(self, user_id: int) -> bool:
         return bool(self._clients.get(user_id))

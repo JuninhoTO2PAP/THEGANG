@@ -1507,7 +1507,10 @@ textarea {
 }
 
 .call-tile.screen.is-off .screen-watch {
-  display: inline-flex;
+  display: flex !important;
+  position: static;
+  margin: 8px;
+  justify-content: center;
 }
 
 .screen-lightbox {

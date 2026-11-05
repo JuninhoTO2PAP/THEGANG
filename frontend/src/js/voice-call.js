@@ -4,7 +4,7 @@ import { api } from "./api.js";
 import { Perm, can } from "./perms.js";
 import { playCallJoin } from "./sounds.js";
 import { toast } from "./ui.js";
-import { onWs } from "./ws.js";
+import { onWs, sendVoiceJoin, sendVoiceLeave } from "./ws.js";
 
 let activeRoom = null;
 let eventTimer = null;
@@ -375,7 +375,7 @@ export async function startVoiceCall(channel, mountEl, { user, group } = {}) {
                 <button type="button" data-screen="min" title="Minimizar">—</button>
                 <button type="button" data-screen="hide" title="Não assistir">✕</button>
               </div>
-              <button type="button" class="screen-watch" data-screen="watch" hidden>Assistir tela</button>`
+              <button type="button" class="screen-watch" data-screen="watch" hidden>Voltar a assistir</button>`
         }
         <span class="call-tile-name">${escapeHtml(label)}</span>
       `;
@@ -453,6 +453,18 @@ export async function startVoiceCall(channel, mountEl, { user, group } = {}) {
       document.body.appendChild(lightbox);
     };
 
+    const showScreenVideo = (wrap, track) => {
+      if (!track) return;
+      wrap.querySelectorAll("video").forEach((node) => node.remove());
+      const video = track.attach();
+      video.playsInline = true;
+      video.autoplay = true;
+      video.muted = true;
+      video.style.display = "";
+      wrap.classList.add("has-video");
+      wrap.prepend(video);
+    };
+
     const setWatching = async (wrap, watch) => {
       const pub = screenPubs.get(wrap.dataset.tile);
       wrap.classList.toggle("is-off", !watch);
@@ -467,6 +479,7 @@ export async function startVoiceCall(channel, mountEl, { user, group } = {}) {
           /* preview local não desinscreve */
         }
       }
+      if (watch && pub?.track) showScreenVideo(wrap, pub.track);
       const video = wrap.querySelector("video");
       if (video) video.style.display = watch ? "" : "none";
     };
@@ -535,9 +548,13 @@ export async function startVoiceCall(channel, mountEl, { user, group } = {}) {
         participant &&
         !participant.isLocal
       ) {
-        videosEl
-          .querySelector(`[data-tile="${tileId(participant, "screen")}"]`)
-          ?.remove();
+        const tile = videosEl.querySelector(`[data-tile="${tileId(participant, "screen")}"]`);
+        if (tile?.classList.contains("is-off")) {
+          tile.querySelectorAll("video").forEach((node) => node.remove());
+          tile.classList.remove("has-video");
+        } else {
+          tile?.remove();
+        }
       }
       if (source === mod.Track.Source.ScreenShare && participant?.isLocal) {
         videosEl
@@ -571,6 +588,12 @@ export async function startVoiceCall(channel, mountEl, { user, group } = {}) {
     room.on(mod.RoomEvent.TrackUnsubscribed, (track, pub, participant) => {
       detachTrack(track, participant, pub);
     });
+    room.on(mod.RoomEvent.TrackUnpublished, (pub, participant) => {
+      if (pub.source !== mod.Track.Source.ScreenShare || participant?.isLocal) return;
+      const tile = videosEl.querySelector(`[data-tile="${tileId(participant, "screen")}"]`);
+      screenPubs.delete(tile?.dataset.tile);
+      tile?.remove();
+    });
     room.on(mod.RoomEvent.LocalTrackPublished, (pub, participant) => {
       if (pub.track) attachTrack(pub.track, participant, pub);
       syncRoster();
@@ -597,6 +620,7 @@ export async function startVoiceCall(channel, mountEl, { user, group } = {}) {
     });
 
     await room.connect(token.url, token.token);
+    sendVoiceJoin(channel.id);
     await room.localParticipant.setMicrophoneEnabled(true);
 
     attachExisting(room.localParticipant);
@@ -710,6 +734,7 @@ export async function leaveVoiceCall() {
     offEventWs();
     offEventWs = null;
   }
+  sendVoiceLeave();
   document.querySelector(".screen-lightbox")?.remove();
   stageRoot?.remove();
   stageRoot = null;
