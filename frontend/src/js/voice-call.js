@@ -13,6 +13,23 @@ let stageRoot = null;
 let joinedChannelId = null;
 let dockNode = null;
 let rosterWatch = null;
+let voiceBeat = null;
+
+function stopVoiceBeat() {
+  if (voiceBeat) {
+    clearInterval(voiceBeat);
+    voiceBeat = null;
+  }
+}
+
+function startVoiceBeat(channelId) {
+  stopVoiceBeat();
+  const ping = () => {
+    api("/api/voice/here", { method: "POST", body: { channel_id: channelId } }).catch(() => {});
+  };
+  ping();
+  voiceBeat = setInterval(ping, 8000);
+}
 
 export function onCallRoster(fn) {
   rosterWatch = fn;
@@ -621,6 +638,7 @@ export async function startVoiceCall(channel, mountEl, { user, group } = {}) {
 
     await room.connect(token.url, token.token);
     sendVoiceJoin(channel.id);
+    startVoiceBeat(channel.id);
     await room.localParticipant.setMicrophoneEnabled(true);
 
     attachExisting(room.localParticipant);
@@ -734,6 +752,7 @@ export async function leaveVoiceCall() {
     offEventWs();
     offEventWs = null;
   }
+  stopVoiceBeat();
   sendVoiceLeave();
   api("/api/voice/leave", { method: "POST" }).catch(() => {});
   document.querySelector(".screen-lightbox")?.remove();

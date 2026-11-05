@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user
 from app.db.session import get_db
-from app.models import User
+from app.models import Channel, GroupMember, User
 from app.services import message_extra, push_service, voice_service
 from app.services.ws_hub import hub
 
@@ -34,6 +34,31 @@ def voice_roster(
 ) -> list[dict]:
     """Quem está em cada call, visível mesmo para quem não entrou na sala."""
     return hub.voice_calls()
+
+
+@router.post("/here", status_code=204)
+async def voice_here(
+    body: VoiceTokenRequest,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> None:
+    """Quem está na call avisa o servidor, para a lista aparecer fora da sala."""
+    channel = db.get(Channel, body.channel_id)
+    if channel is None or channel.channel_type != "voice":
+        return
+    if db.get(GroupMember, (channel.group_id, user.id)) is None:
+        return
+    await hub.mark_user_voice(
+        user.id,
+        {
+            "user_id": user.id,
+            "channel_id": channel.id,
+            "group_id": channel.group_id,
+            "nickname": user.nickname,
+            "username": user.username,
+            "avatar_url": user.avatar_url,
+        },
+    )
 
 
 @router.post("/leave", status_code=204)

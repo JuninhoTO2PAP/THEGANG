@@ -334,7 +334,7 @@ export function renderChat(container, user, { onOpenSettings, onLogout }) {
 
   function peopleInChannel(channelId) {
     const map = new Map();
-    for (const person of voiceCalls.filter((item) => item.channel_id === channelId)) {
+    for (const person of voiceCalls.filter((item) => Number(item.channel_id) === Number(channelId))) {
       map.set(person.user_id, {
         userId: person.user_id,
         name: person.nickname,

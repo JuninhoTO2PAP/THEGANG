@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from collections import defaultdict
 from dataclasses import dataclass, field
 
@@ -33,31 +34,26 @@ class ConnectionHub:
         return client
 
     async def disconnect(self, client: Client) -> bool:
-        """Remove o cliente. Devolve True se o usuário ficou sem conexões."""
-        voice_changed = False
+        """Remove o cliente. A call continua listada até a pessoa sair ou o sinal expirar."""
         async with self._lock:
             bucket = self._clients.get(client.user_id, [])
             if client in bucket:
                 bucket.remove(client)
-            if client.voice is not None:
-                replacement = next((other.voice for other in bucket if other.voice), None)
-                if replacement:
-                    self._voice[client.user_id] = replacement
-                else:
-                    self._voice.pop(client.user_id, None)
-                voice_changed = True
             went_offline = False
             if not bucket and client.user_id in self._clients:
                 del self._clients[client.user_id]
-                self._voice.pop(client.user_id, None)
                 went_offline = True
-            calls = list(self._voice.values()) if voice_changed or went_offline else None
-        if calls is not None:
-            await self._broadcast_all({"type": "voice_state", "calls": calls})
         return went_offline
 
     def voice_calls(self) -> list[dict]:
-        return list(self._voice.values())
+        now = time.time()
+        fresh: list[dict] = []
+        for user_id, info in list(self._voice.items()):
+            if now - float(info.get("seen") or 0) > 25:
+                self._voice.pop(user_id, None)
+                continue
+            fresh.append({key: value for key, value in info.items() if key != "seen"})
+        return fresh
 
     async def set_voice(self, client: Client, info: dict | None) -> None:
         async with self._lock:
@@ -72,8 +68,8 @@ class ConnectionHub:
                 else:
                     self._voice.pop(client.user_id, None)
             else:
-                self._voice[client.user_id] = info
-            calls = list(self._voice.values())
+                self._voice[client.user_id] = {**info, "seen": time.time()}
+            calls = self.voice_calls()
         await self._broadcast_all({"type": "voice_state", "calls": calls})
 
     async def mark_user_voice(self, user_id: int, info: dict | None) -> None:
@@ -85,10 +81,11 @@ class ConnectionHub:
                     client.voice = None
                 self._voice.pop(user_id, None)
             else:
+                stamped = {**info, "seen": time.time()}
                 if clients:
-                    clients[-1].voice = info
-                self._voice[user_id] = info
-            calls = list(self._voice.values())
+                    clients[-1].voice = stamped
+                self._voice[user_id] = stamped
+            calls = self.voice_calls()
         await self._broadcast_all({"type": "voice_state", "calls": calls})
 
     def is_online(self, user_id: int) -> bool:
