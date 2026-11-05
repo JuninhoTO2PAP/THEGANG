@@ -72,3 +72,31 @@ class TeamStatsPublic(BaseModel):
     diario: int = 0
     intensivo: int = 0
     campeonato: int = 0
+
+
+class HistoryEvent(BaseModel):
+    id: int
+    event_type: str
+    status: str
+    started_at: datetime
+    ended_at: datetime | None = None
+    placement: int | None = None
+    booyah_count: int | None = None
+    kills: int | None = None
+    points: int | None = None
+    is_win: bool = False
+    mvp_nickname: str | None = None
+    owner_nickname: str = ""
+
+
+class MvpRank(BaseModel):
+    nickname: str
+    mvp_count: int
+
+
+class EventHistory(BaseModel):
+    events: list[HistoryEvent] = []
+    ranking: list[MvpRank] = []
+    kills_avg: float = 0
+    points_total: int = 0
+    events_total: int = 0

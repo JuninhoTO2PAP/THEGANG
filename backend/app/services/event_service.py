@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.core.errors import AppError
 from app.core.permissions import Perm, has_perm
 from app.models import EventMvpVote, Group, GroupMember, MatchEvent, User
-from app.schemas.event import EventFinish, EventStart, MvpCandidate, TeamStatsPublic
+from app.schemas.event import EventFinish, EventHistory, EventStart, HistoryEvent, MvpCandidate, MvpRank, TeamStatsPublic
 from app.services import group_service
 from app.utils.time import utcnow
 
@@ -30,6 +30,11 @@ def _can_start_event(db: Session, group_id: int, user: User) -> bool:
         return True
     perms = group_service._member_permissions(db, group_id, user.id)
     return has_perm(perms, Perm.START_EVENTS)
+
+
+def can_run_call_event(db: Session, group_id: int, user: User) -> bool:
+    """CPT ou dono: iniciar evento e expulsar da call."""
+    return _can_start_event(db, group_id, user)
 
 
 def _elapsed(event: MatchEvent) -> int:
@@ -259,6 +264,70 @@ def team_stats(db: Session, user: User, group_id: int | None = None) -> TeamStat
         diario=sum(1 for e in events if e.event_type == "diario"),
         intensivo=sum(1 for e in events if e.event_type == "intensivo"),
         campeonato=sum(1 for e in events if e.event_type == "campeonato"),
+    )
+
+
+def event_history(db: Session, user: User, group_id: int | None = None) -> EventHistory:
+    """Partidas já registradas e o ranking de MVP do time."""
+    if group_id is not None:
+        group_service.require_group_member(db, group_id, user)
+        group_ids = [group_id]
+    else:
+        group_ids = list(
+            db.scalars(select(GroupMember.group_id).where(GroupMember.user_id == user.id))
+        )
+    if not group_ids:
+        return EventHistory()
+
+    rows = list(
+        db.scalars(
+            select(MatchEvent)
+            .where(MatchEvent.group_id.in_(group_ids))
+            .order_by(MatchEvent.id.desc())
+            .limit(40)
+        ).all()
+    )
+    finished = [event for event in rows if event.placement is not None]
+    kills_total = sum(event.kills or 0 for event in finished)
+    points_total = sum(event.points or 0 for event in finished)
+    mvp_ids = [event.mvp_user_id for event in rows if event.mvp_user_id]
+    tally = Counter(mvp_ids)
+    ranking: list[MvpRank] = []
+    if tally:
+        people = {
+            person.id: person.nickname
+            for person in db.scalars(select(User).where(User.id.in_(tally.keys()))).all()
+        }
+        ranking = [
+            MvpRank(nickname=people.get(user_id, "—"), mvp_count=count)
+            for user_id, count in tally.most_common()
+        ]
+    events = []
+    for event in rows:
+        owner = db.get(User, event.owner_id)
+        mvp = db.get(User, event.mvp_user_id) if event.mvp_user_id else None
+        events.append(
+            HistoryEvent(
+                id=event.id,
+                event_type=event.event_type,
+                status=event.status,
+                started_at=event.started_at,
+                ended_at=event.ended_at,
+                placement=event.placement,
+                booyah_count=event.booyah_count,
+                kills=event.kills,
+                points=event.points,
+                is_win=bool(event.is_win),
+                mvp_nickname=mvp.nickname if mvp else None,
+                owner_nickname=owner.nickname if owner else "",
+            )
+        )
+    return EventHistory(
+        events=events,
+        ranking=ranking,
+        kills_avg=round(kills_total / len(finished), 1) if finished else 0,
+        points_total=points_total,
+        events_total=len(finished),
     )
 
 

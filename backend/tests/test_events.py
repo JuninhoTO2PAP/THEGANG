@@ -42,9 +42,18 @@ def test_fluxo_evento_call_mvp_e_stats(client, seeded):
     other_token, _ = _member(client, username="outroev")
 
     groups = client.get("/api/groups", headers=_auth(admin)).json()
-    group = next(g for g in groups if g["name"] == "the-gang")
-    channels = client.get(f"/api/groups/{group['id']}/channels", headers=_auth(admin)).json()
-    voice = next(c for c in channels if c["channel_type"] == "voice")
+    group = None
+    voice = None
+    for candidate in groups:
+        channels = client.get(
+            f"/api/groups/{candidate['id']}/channels", headers=_auth(admin)
+        ).json()
+        found = next((c for c in channels if c["channel_type"] == "voice"), None)
+        if found is not None:
+            group = candidate
+            voice = found
+            break
+    assert group is not None and voice is not None
 
     # membro comum NÃO inicia
     denied_start = client.post(
@@ -122,3 +131,27 @@ def test_fluxo_evento_call_mvp_e_stats(client, seeded):
     assert stats["wins"] >= 1
     assert stats["booyah_total"] >= 3
     assert member_id  # usado no fluxo
+
+    history = client.get(
+        f"/api/events/history?group_id={group['id']}",
+        headers=_auth(admin),
+    )
+    assert history.status_code == 200
+    body = history.json()
+    assert body["events_total"] >= 2
+    assert body["points_total"] >= 62
+    assert body["kills_avg"] >= 11
+    assert body["ranking"][0]["mvp_count"] >= 1
+
+    denied_kick = client.post(
+        "/api/voice/kick",
+        headers=_auth(member_token),
+        json={"channel_id": voice["id"], "user_id": admin_id},
+    )
+    assert denied_kick.status_code == 403
+    self_kick = client.post(
+        "/api/voice/kick",
+        headers=_auth(admin),
+        json={"channel_id": voice["id"], "user_id": admin_id},
+    )
+    assert self_kick.status_code == 400

@@ -1271,6 +1271,7 @@ textarea {
 }
 
 .call-stage {
+  position: relative;
   flex: 1 1 auto;
   width: 100%;
   min-height: 420px;
@@ -1573,10 +1574,123 @@ textarea {
   left: 8px;
   bottom: 8px;
   z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
   background: rgba(0, 0, 0, 0.55);
   padding: 2px 8px;
   border-radius: 6px;
   font-size: 0.78rem;
+}
+
+.call-tile-role {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+}
+
+.kick-panel[hidden],
+.call-tile-role[hidden] {
+  display: none;
+}
+
+.kick-panel {
+  position: absolute;
+  right: 16px;
+  bottom: 76px;
+  z-index: 6;
+  min-width: 200px;
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border-radius: 12px;
+  background: #1e1f22;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+
+.kick-panel button {
+  text-align: left;
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #2b2d31;
+  color: #fff;
+  cursor: pointer;
+}
+
+.kick-panel button:hover {
+  background: #f23f43;
+}
+
+.voice-head-btn {
+  height: 30px;
+  padding: 0 10px;
+  font-size: 0.78rem;
+}
+
+.modal-card.wide {
+  width: min(760px, 100%);
+}
+
+.modal-card.wide .modal-body {
+  max-height: min(70vh, 640px);
+  overflow: auto;
+}
+
+.history-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.history-stats div {
+  background: #2b2d31;
+  border-radius: 10px;
+  padding: 10px;
+  display: grid;
+}
+
+.history-stats strong {
+  font-size: 1.2rem;
+}
+
+.history-stats span,
+.history-row span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.history-title {
+  margin: 12px 0 8px;
+  font-size: 0.95rem;
+}
+
+.history-rank {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 6px;
+}
+
+.history-rank li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.history-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.history-row div {
+  display: grid;
 }
 
 .call-speak-bar {

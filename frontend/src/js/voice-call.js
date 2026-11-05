@@ -3,7 +3,7 @@
 import { api } from "./api.js";
 import { Perm, can } from "./perms.js";
 import { playCallJoin, playCallLeave } from "./sounds.js";
-import { toast } from "./ui.js";
+import { ffRoleLabel, toast } from "./ui.js";
 import { onWs, sendVoiceJoin, sendVoiceLeave } from "./ws.js";
 
 let activeRoom = null;
@@ -109,11 +109,13 @@ export async function startVoiceCall(channel, mountEl, { user, group } = {}) {
       <div class="call-videos" id="call-videos"></div>
       <div class="event-panel" id="event-panel"></div>
       <div class="call-status" id="call-status">Conectando…</div>
+      <div class="kick-panel" id="kick-panel" hidden></div>
       <div class="call-controls">
         <button type="button" class="call-btn" id="call-mute" title="Mute">🎤</button>
         <button type="button" class="call-btn" id="call-deafen" title="Deafen">🎧</button>
         <button type="button" class="call-btn" id="call-cam" title="Câmera">📷</button>
         <button type="button" class="call-btn" id="call-screen" title="Compartilhar tela">🖥️</button>
+        <button type="button" class="call-btn" id="call-kick" title="Expulsar" ${canStartEvent ? "" : "hidden"}>⛔</button>
         <button type="button" class="call-btn danger" id="call-leave" title="Sair">✕</button>
       </div>
     </div>
@@ -145,19 +147,6 @@ export async function startVoiceCall(channel, mountEl, { user, group } = {}) {
     };
     tick();
     eventTimer = setInterval(tick, 1000);
-  }
-
-  async function startEvent(eventType) {
-    try {
-      currentEvent = await api("/api/events/start", {
-        method: "POST",
-        body: { channel_id: channel.id, event_type: eventType },
-      });
-      toast(`${TYPE_LABEL[eventType]} iniciado!`);
-      paintEvent();
-    } catch (error) {
-      toast(error.message, true);
-    }
   }
 
   function showFinishForm() {
@@ -240,31 +229,7 @@ export async function startVoiceCall(channel, mountEl, { user, group } = {}) {
     const ev = currentEvent;
     if (!ev) {
       clearEventTimer();
-      panelEl.innerHTML = canStartEvent
-        ? `
-        <div class="event-card idle">
-          <div class="event-card-head">
-            <strong>Evento da call</strong>
-            <span>CPT ou dono inicia</span>
-          </div>
-          <p class="hint">Escolha o tipo e comece o timer da call.</p>
-          <div class="event-type-row">
-            <button type="button" class="event-type-btn" data-start="diario">Diário</button>
-            <button type="button" class="event-type-btn intensivo" data-start="intensivo">Intensivo</button>
-            <button type="button" class="event-type-btn campeonato" data-start="campeonato">Campeonato</button>
-          </div>
-        </div>`
-        : `
-        <div class="event-card idle">
-          <div class="event-card-head">
-            <strong>Evento da call</strong>
-            <span>Aguardando CPT</span>
-          </div>
-          <p class="hint">Só quem tem cargo CPT (ou o dono do app) inicia Diário, Intensivo ou Campeonato.</p>
-        </div>`;
-      panelEl.querySelectorAll("[data-start]").forEach((btn) => {
-        btn.addEventListener("click", () => startEvent(btn.dataset.start));
-      });
+      panelEl.innerHTML = "";
       return;
     }
 
@@ -396,7 +361,9 @@ export async function startVoiceCall(channel, mountEl, { user, group } = {}) {
               </div>
               <button type="button" class="screen-watch" data-screen="watch" hidden>Voltar a assistir</button>`
         }
-        <span class="call-tile-name">${escapeHtml(label)}</span>
+        <span class="call-tile-name">${escapeHtml(label)}${
+          kind === "user" ? `<small class="call-tile-role" hidden></small>` : ""
+        }</span>
       `;
       if (kind === "screen") {
         videosEl.prepend(wrap);
@@ -422,11 +389,32 @@ export async function startVoiceCall(channel, mountEl, { user, group } = {}) {
       });
     };
 
+    const roleText = (participant) => {
+      if (participant.isLocal) return user?.ff_role ? ffRoleLabel(user.ff_role) : "";
+      try {
+        const meta = JSON.parse(participant.metadata || "{}");
+        return meta.ff_role ? ffRoleLabel(meta.ff_role) : "";
+      } catch {
+        return "";
+      }
+    };
+
+    const paintRole = (participant) => {
+      const tile = videosEl.querySelector(`[data-tile="${tileId(participant, "user")}"]`);
+      const slot = tile?.querySelector(".call-tile-role");
+      if (!slot) return;
+      const label = roleText(participant);
+      slot.textContent = label;
+      slot.hidden = !label;
+    };
+
     const syncRoster = () => {
       if (!videosEl) return;
       ensureTile(room.localParticipant, "user");
+      paintRole(room.localParticipant);
       for (const p of room.remoteParticipants.values()) {
         ensureTile(p, "user");
+        paintRole(p);
       }
       const people = [room.localParticipant, ...room.remoteParticipants.values()].map((p) => ({
         identity: p.identity,
@@ -657,6 +645,14 @@ export async function startVoiceCall(channel, mountEl, { user, group } = {}) {
       return true;
     };
 
+    room.on(mod.RoomEvent.Disconnected, (reason) => {
+      const removed =
+        reason === 4 || reason === mod.DisconnectReason?.PARTICIPANT_REMOVED;
+      if (activeRoom !== room) return;
+      if (removed) toast("Você foi expulso da call.", true);
+      leaveVoiceCall();
+    });
+
     await room.connect(token.url, token.token);
     if (await dropIfGone()) return;
     sendVoiceJoin(channel.id);
@@ -690,6 +686,8 @@ export async function startVoiceCall(channel, mountEl, { user, group } = {}) {
     const deafenBtn = stageRoot?.querySelector("#call-deafen");
     const camBtn = stageRoot?.querySelector("#call-cam");
     const screenBtn = stageRoot?.querySelector("#call-screen");
+    const kickBtn = stageRoot?.querySelector("#call-kick");
+    const kickPanel = stageRoot?.querySelector("#kick-panel");
     const leaveBtn = stageRoot?.querySelector("#call-leave");
     if (!muteBtn || !deafenBtn || !camBtn || !screenBtn || !leaveBtn) {
       if (activeRoom === room) await leaveVoiceCall();
@@ -765,6 +763,46 @@ export async function startVoiceCall(channel, mountEl, { user, group } = {}) {
       }
     });
 
+    kickBtn?.addEventListener("click", () => {
+      if (!kickPanel) return;
+      const others = [...room.remoteParticipants.values()];
+      if (!others.length) {
+        kickPanel.hidden = true;
+        toast("Só você está na call.");
+        return;
+      }
+      if (!kickPanel.hidden) {
+        kickPanel.hidden = true;
+        return;
+      }
+      kickPanel.hidden = false;
+      kickPanel.innerHTML = `
+        <strong>Expulsar da call</strong>
+        ${others
+          .map((person) => {
+            const userId = String(person.identity || "").replace("user-", "");
+            return `<button type="button" data-kick="${escapeHtml(userId)}">${escapeHtml(displayName(person))}</button>`;
+          })
+          .join("")}
+      `;
+      kickPanel.querySelectorAll("[data-kick]").forEach((button) => {
+        button.addEventListener("click", async () => {
+          const name = button.textContent || "essa pessoa";
+          if (!window.confirm(`Expulsar ${name} da call?`)) return;
+          try {
+            await api("/api/voice/kick", {
+              method: "POST",
+              body: { channel_id: channel.id, user_id: Number(button.dataset.kick) },
+            });
+            kickPanel.hidden = true;
+            toast(`${name} foi expulso da call.`);
+          } catch (error) {
+            toast(error.message, true);
+          }
+        });
+      });
+    });
+
     leaveBtn.addEventListener("click", async () => {
       await leaveVoiceCall();
     });
@@ -797,12 +835,13 @@ export async function leaveVoiceCall() {
     dockNode.hidden = true;
     dockNode.innerHTML = "";
   }
-  if (!activeRoom) return;
+  const room = activeRoom;
+  activeRoom = null;
+  if (!room) return;
   try {
-    await activeRoom.disconnect();
+    await room.disconnect();
   } catch {
     /* ignore */
   }
-  activeRoom = null;
   document.querySelectorAll("audio[data-identity]").forEach((el) => el.remove());
 }

@@ -10,6 +10,7 @@ from app.db.session import get_db
 from app.models import User
 from app.schemas.event import (
     EventFinish,
+    EventHistory,
     EventPublic,
     EventStart,
     MvpVoteBody,
@@ -32,6 +33,16 @@ def stats(
     group_id: int | None = Query(default=None),
 ) -> TeamStatsPublic:
     return event_service.team_stats(db, user, group_id)
+
+
+@router.get("/history", response_model=EventHistory)
+def history(
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+    group_id: int | None = Query(default=None),
+) -> EventHistory:
+    """Lista das partidas e ranking de MVP."""
+    return event_service.event_history(db, user, group_id)
 
 
 @router.get("/recent", response_model=list[EventPublic])

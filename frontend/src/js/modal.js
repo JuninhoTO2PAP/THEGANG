@@ -1,13 +1,13 @@
 /** Modal genérico do THE GANG. */
 
-export function openModal({ title, subtitle = "", bodyHtml, onMount }) {
+export function openModal({ title, subtitle = "", bodyHtml, onMount, wide = false }) {
   closeModal();
 
   const overlay = document.createElement("div");
   overlay.className = "modal-overlay";
   overlay.id = "tg-modal";
   overlay.innerHTML = `
-    <div class="modal-card" role="dialog" aria-modal="true" aria-label="${escapeAttr(title)}">
+    <div class="modal-card${wide ? " wide" : ""}" role="dialog" aria-modal="true" aria-label="${escapeAttr(title)}">
       <header class="modal-head">
         <div>
           <h2>${escapeHtml(title)}</h2>

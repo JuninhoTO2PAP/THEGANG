@@ -1,5 +1,8 @@
 """Tokens LiveKit para call de voz/vídeo/tela."""
 
+import json
+import urllib.error
+import urllib.request
 from datetime import timedelta
 
 import jwt
@@ -31,9 +34,9 @@ def create_voice_token(
     if not has_perm(perms, Perm.CONNECT_VOICE):
         raise AppError(403, "Sem permissão para entrar na call.")
 
-    room = f"group-{channel.group_id}-ch-{channel.id}"
+    room = room_name(channel.group_id, channel.id)
     now = utcnow()
-    identity = f"user-{user.id}"
+    identity = participant_identity(user.id)
     video_grant = {
         "roomJoin": True,
         "room": room,
@@ -48,7 +51,13 @@ def create_voice_token(
         "nbf": int(now.timestamp()) - 10,
         "exp": int((now + timedelta(hours=6)).timestamp()),
         "video": video_grant,
-        "metadata": f'{{"username":"{user.username}","nickname":"{user.nickname}"}}',
+        "metadata": json.dumps(
+            {
+                "username": user.username,
+                "nickname": user.nickname,
+                "ff_role": user.ff_role or "",
+            }
+        ),
     }
     token = jwt.encode(payload, settings.livekit_api_secret, algorithm="HS256")
     return {
@@ -59,3 +68,48 @@ def create_voice_token(
         "channel_id": channel.id,
         "group_id": channel.group_id,
     }
+
+
+def room_name(group_id: int, channel_id: int) -> str:
+    return f"group-{group_id}-ch-{channel_id}"
+
+
+def participant_identity(user_id: int) -> str:
+    return f"user-{user_id}"
+
+
+def remove_livekit_participant(room: str, identity: str) -> None:
+    """Tira a pessoa da sala. 404 da LiveKit significa que ela já saiu."""
+    if not settings.livekit_url or not settings.livekit_api_key or not settings.livekit_api_secret:
+        raise AppError(503, "LiveKit não configurado.")
+    host = settings.livekit_url.replace("wss://", "https://").replace("ws://", "http://").rstrip("/")
+    now = utcnow()
+    token = jwt.encode(
+        {
+            "iss": settings.livekit_api_key,
+            "sub": "the-gang-api",
+            "nbf": int(now.timestamp()) - 10,
+            "exp": int((now + timedelta(minutes=1)).timestamp()),
+            "video": {"roomAdmin": True, "room": room},
+        },
+        settings.livekit_api_secret,
+        algorithm="HS256",
+    )
+    request = urllib.request.Request(
+        f"{host}/twirp/livekit.RoomService/RemoveParticipant",
+        data=json.dumps({"room": room, "identity": identity}).encode(),
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=8) as response:
+            response.read()
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            return
+        raise AppError(502, "Não foi possível expulsar da call.") from exc
+    except urllib.error.URLError as exc:
+        raise AppError(502, "A call não respondeu.") from exc

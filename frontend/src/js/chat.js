@@ -1,6 +1,7 @@
 /** Layout Discord: grupos → canais/DM + WS ao vivo. */
 
 import { api, apiUpload, mediaUrl } from "./api.js";
+import { openModal } from "./modal.js";
 import { openCreateChannelModal } from "./create-channel.js";
 import { openCreateGroupModal } from "./create-group.js";
 import { openGroupSettings } from "./group-settings.js";
@@ -691,7 +692,7 @@ export function renderChat(container, user, { onOpenSettings, onLogout }) {
       composer.hidden = true;
       searchBtn.hidden = true;
       subscribeChannel(channelId);
-      headerEl.innerHTML = `<span>🔊</span><span>${escapeHtml(activeChannel.name)}</span>`;
+      paintVoiceHeader(activeChannel);
       if (joinedCallId() === channelId && focusCall(messagesEl)) {
         return;
       }
@@ -744,6 +745,130 @@ export function renderChat(container, user, { onOpenSettings, onLogout }) {
     } catch (error) {
       messagesEl.innerHTML = `<p class="hint" style="padding:12px">${escapeHtml(error.message)}</p>`;
     }
+  }
+
+  function canRunEvent(group) {
+    if (!user || !group) return false;
+    return (
+      user.is_admin ||
+      group.created_by === user.id ||
+      can(group.my_permissions || 0, Perm.ADMINISTRATOR) ||
+      can(group.my_permissions || 0, Perm.START_EVENTS)
+    );
+  }
+
+  function paintVoiceHeader(channel) {
+    const cpt = canRunEvent(activeGroup);
+    headerEl.innerHTML = `
+      <span>🔊</span>
+      <span>${escapeHtml(channel.name)}</span>
+      <div class="header-actions">
+        <button type="button" class="btn btn-ghost voice-head-btn" id="voice-history">Histórico</button>
+        ${
+          cpt
+            ? `<button type="button" class="btn btn-primary voice-head-btn" id="voice-event">Iniciar evento</button>`
+            : ""
+        }
+      </div>
+    `;
+    headerEl.querySelector("#voice-history")?.addEventListener("click", () => {
+      openEventHistory(activeGroup?.id);
+    });
+    headerEl.querySelector("#voice-event")?.addEventListener("click", () => {
+      openStartEvent(channel);
+    });
+  }
+
+  function openStartEvent(channel) {
+    openModal({
+      title: "Iniciar evento",
+      subtitle: "Só o CPT inicia. Escolha o tipo da partida.",
+      bodyHtml: `
+        <div class="event-type-row">
+          <button type="button" class="event-type-btn" data-start="diario">Diário</button>
+          <button type="button" class="event-type-btn intensivo" data-start="intensivo">Intensivo</button>
+          <button type="button" class="event-type-btn campeonato" data-start="campeonato">Campeonato</button>
+        </div>
+      `,
+      onMount(card, close) {
+        card.querySelectorAll("[data-start]").forEach((button) => {
+          button.addEventListener("click", async () => {
+            try {
+              await api("/api/events/start", {
+                method: "POST",
+                body: { channel_id: channel.id, event_type: button.dataset.start },
+              });
+              close();
+              const label = { diario: "Diário", intensivo: "Intensivo", campeonato: "Campeonato" };
+              toast(`${label[button.dataset.start] || "Evento"} iniciado.`);
+            } catch (error) {
+              toast(error.message, true);
+            }
+          });
+        });
+      },
+    });
+  }
+
+  async function openEventHistory(groupId) {
+    openModal({
+      title: "Histórico",
+      subtitle: "Partidas, MVP e pontos do time.",
+      wide: true,
+      bodyHtml: `<p class="hint">Carregando…</p>`,
+      onMount(card) {
+        const body = card.querySelector(".modal-body");
+        const query = groupId ? `?group_id=${groupId}` : "";
+        api(`/api/events/history${query}`)
+          .then((data) => {
+            body.innerHTML = historyHtml(data);
+          })
+          .catch((error) => {
+            body.innerHTML = `<p class="hint">${escapeHtml(error.message)}</p>`;
+          });
+      },
+    });
+  }
+
+  function historyHtml(data) {
+    const labels = { diario: "Diário", intensivo: "Intensivo", campeonato: "Campeonato" };
+    const ranking = (data.ranking || [])
+      .map(
+        (row, index) => `
+          <li><span>${index + 1}. ${escapeHtml(row.nickname)}</span><strong>${row.mvp_count} MVP</strong></li>`
+      )
+      .join("");
+    const events = (data.events || [])
+      .map((event) => {
+        const when = formatDay(event.ended_at || event.started_at);
+        const result =
+          event.placement != null
+            ? `${event.placement}º · ${event.kills ?? 0} kills · ${event.points ?? 0} pts`
+            : "Em andamento";
+        return `
+          <article class="history-row">
+            <div>
+              <strong>${escapeHtml(labels[event.event_type] || event.event_type)}</strong>
+              <span>${escapeHtml(when)}${event.is_win ? " · vitória" : ""}</span>
+            </div>
+            <div>
+              <span>${escapeHtml(result)}</span>
+              <span>MVP ${escapeHtml(event.mvp_nickname || "—")}</span>
+            </div>
+          </article>`;
+      })
+      .join("");
+    return `
+      <section class="history-stats">
+        <div><strong>${data.events_total ?? 0}</strong><span>Partidas</span></div>
+        <div><strong>${data.kills_avg ?? 0}</strong><span>Média de kills</span></div>
+        <div><strong>${data.points_total ?? 0}</strong><span>Pontos do time</span></div>
+      </section>
+      <h3 class="history-title">Quem mais foi MVP</h3>
+      ${ranking ? `<ol class="history-rank">${ranking}</ol>` : `<p class="hint">Nenhum MVP ainda.</p>`}
+      <h3 class="history-title">Partidas</h3>
+      ${events || `<p class="hint">Nenhuma partida registrada.</p>`}
+    `;
   }
 
   function paintPins() {
