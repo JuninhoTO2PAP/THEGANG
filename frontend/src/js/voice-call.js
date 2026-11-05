@@ -330,6 +330,11 @@ export async function startVoiceCall(channel, mountEl, { user, group } = {}) {
         <div class="call-tile-avatar" aria-hidden="true">${escapeHtml(
           String(displayName(participant)).slice(0, 1).toUpperCase()
         )}</div>
+        ${
+          kind === "user"
+            ? `<div class="call-speak-bar" aria-hidden="true"><span></span><span></span><span></span></div>`
+            : ""
+        }
         <span class="call-tile-name">${escapeHtml(label)}</span>
       `;
       if (kind === "screen") {
@@ -347,6 +352,13 @@ export async function startVoiceCall(channel, mountEl, { user, group } = {}) {
       document
         .querySelectorAll(`audio[data-identity="${CSS.escape(identity)}"]`)
         .forEach((el) => el.remove());
+    };
+
+    const paintSpeakers = (speakers) => {
+      const talking = new Set((speakers || []).map((p) => p.identity));
+      videosEl.querySelectorAll(".call-tile:not(.screen)").forEach((tile) => {
+        tile.classList.toggle("speaking", talking.has(tile.dataset.identity));
+      });
     };
 
     const syncRoster = () => {
@@ -463,6 +475,9 @@ export async function startVoiceCall(channel, mountEl, { user, group } = {}) {
     room.on(mod.RoomEvent.ParticipantDisconnected, (participant) => {
       removeTilesFor(participant.identity);
       syncRoster();
+    });
+    room.on(mod.RoomEvent.ActiveSpeakersChanged, (speakers) => {
+      paintSpeakers(speakers);
     });
 
     await room.connect(token.url, token.token);

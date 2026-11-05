@@ -194,18 +194,30 @@ export function renderChat(container, user, { onOpenSettings, onLogout }) {
   const offWs = onWs(handleWsEvent);
   connectWs();
 
+  function teamMeta(group) {
+    const slug = group?.name || "";
+    if (slug === "the-gang-a" || slug === "THE GANG A" || slug === "the-gang") {
+      return { label: "THE GANG A", icon: "/icons/team-a.svg", kind: "a" };
+    }
+    if (slug === "the-gang-b" || slug === "THE GANG B") {
+      return { label: "THE GANG B", icon: "/icons/team-b.svg", kind: "b" };
+    }
+    return {
+      label: group?.display_name || group?.name || "Grupo",
+      icon: "",
+      kind: "",
+    };
+  }
+
   function paintRail() {
     rail.innerHTML = groups
       .map((group) => {
-        const label =
-          group.name === "the-gang-a" || group.name === "THE GANG A"
-            ? "A"
-            : group.name === "the-gang-b" || group.name === "THE GANG B"
-              ? "B"
-              : (group.display_name || group.name).slice(0, 2).toUpperCase();
-        const title = group.display_name || group.name;
+        const meta = teamMeta(group);
         const active = activeGroup?.id === group.id ? "active" : "";
-        return `<button class="server-pill ${active}" type="button" data-group="${group.id}" title="${escapeAttr(title)}">${escapeHtml(label)}</button>`;
+        const face = meta.icon
+          ? `<img class="server-face" src="${meta.icon}" alt="${escapeAttr(meta.label)}" />`
+          : escapeHtml(meta.label.slice(0, 2).toUpperCase());
+        return `<button class="server-pill team-${meta.kind || "other"} ${active}" type="button" data-group="${group.id}" title="${escapeAttr(meta.label)}">${face}</button>`;
       })
       .join("");
   }
@@ -540,7 +552,7 @@ export function renderChat(container, user, { onOpenSettings, onLogout }) {
     activeDm = null;
     if (!activeGroup) return;
     paintRail();
-    titleEl.textContent = activeGroup.display_name || activeGroup.name;
+    titleEl.textContent = teamMeta(activeGroup).label;
     settingsBtn.hidden = false;
     try {
       [channels, members] = await Promise.all([

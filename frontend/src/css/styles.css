@@ -378,15 +378,39 @@ textarea {
   border-radius: 16px;
 }
 
-.server-pill:not(.home):not(.add) {
+.server-pill.team-a,
+.server-pill.team-b {
+  padding: 0;
+  overflow: hidden;
+  background: #1a1208;
+}
+
+.server-face {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  pointer-events: none;
+}
+
+.server-pill:not(.home):not(.add):not(.team-a):not(.team-b) {
   background: #5865f2;
   color: #fff;
 }
 
 .server-pill:not(.home):not(.add):hover,
 .server-pill:not(.home):not(.add).active {
-  background: #4752c4;
   border-radius: 16px;
+}
+
+.server-pill.team-a.active,
+.server-pill.team-a:hover {
+  box-shadow: 0 0 0 2px #f0b232;
+}
+
+.server-pill.team-b.active,
+.server-pill.team-b:hover {
+  box-shadow: 0 0 0 2px #6ea8ff;
 }
 
 .server-pill.add {
@@ -1370,6 +1394,52 @@ textarea {
   padding: 2px 8px;
   border-radius: 6px;
   font-size: 0.78rem;
+}
+
+.call-speak-bar {
+  display: none;
+  position: absolute;
+  left: 50%;
+  bottom: 36px;
+  transform: translateX(-50%);
+  z-index: 3;
+  align-items: flex-end;
+  gap: 3px;
+  height: 18px;
+}
+
+.call-tile.speaking {
+  box-shadow: inset 0 0 0 2px #23a559;
+}
+
+.call-tile.speaking .call-speak-bar {
+  display: flex;
+}
+
+.call-speak-bar span {
+  width: 4px;
+  height: 6px;
+  border-radius: 2px;
+  background: #23a559;
+  animation: speak-bar 0.55s ease-in-out infinite;
+}
+
+.call-speak-bar span:nth-child(2) {
+  animation-delay: 0.12s;
+}
+
+.call-speak-bar span:nth-child(3) {
+  animation-delay: 0.24s;
+}
+
+@keyframes speak-bar {
+  0%,
+  100% {
+    height: 5px;
+  }
+  50% {
+    height: 16px;
+  }
 }
 
 .call-status {
