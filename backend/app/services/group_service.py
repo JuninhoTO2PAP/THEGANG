@@ -76,9 +76,11 @@ DEFAULT_GROUP_NAME = "the-gang"  # legado
 # Slugs (GroupCreate normaliza para minúsculo/hífen). Labels só na UI.
 TEAM_A_NAME = "the-gang-a"
 TEAM_B_NAME = "the-gang-b"
+GENERAL_NAME = "geral"
 TEAM_LABELS = {
     TEAM_A_NAME: "THE GANG A",
     TEAM_B_NAME: "THE GANG B",
+    GENERAL_NAME: "GERAL",
     DEFAULT_GROUP_NAME: "THE GANG A",
 }
 TEAM_NAMES = (TEAM_A_NAME, TEAM_B_NAME)
@@ -88,6 +90,8 @@ PROTECTED_GROUP_NAMES = {
     TEAM_B_NAME,
     "THE GANG A",
     "THE GANG B",
+    GENERAL_NAME,
+    "GERAL",
 }
 
 
@@ -108,6 +112,8 @@ def team_label(name: str) -> str:
         return "THE GANG A"
     if key == "the-gang-b":
         return "THE GANG B"
+    if key == GENERAL_NAME:
+        return "GERAL"
     return TEAM_LABELS.get(name, name)
 
 
@@ -208,6 +214,35 @@ def _ensure_owner_in_group(db: Session, group: Group, owner: User) -> None:
             db.add(MemberRole(role_id=admin_role.id, user_id=owner.id))
 
 
+def _ensure_everyone(db: Session, group: Group) -> None:
+    now = utcnow()
+    existing = set(
+        db.scalars(select(GroupMember.user_id).where(GroupMember.group_id == group.id)).all()
+    )
+    for user_id in db.scalars(select(User.id)).all():
+        if user_id not in existing:
+            db.add(GroupMember(group_id=group.id, user_id=user_id, joined_at=now))
+
+
+def _ensure_general_group(db: Session, creator: User) -> Group:
+    """Grupo GERAL: todo mundo entra, inclusive quem se cadastrar depois."""
+    group = db.scalar(select(Group).where(Group.name == GENERAL_NAME))
+    if group is None:
+        group, _ = create_group(
+            db,
+            creator,
+            GroupCreate(
+                name=GENERAL_NAME,
+                description="Grupo geral. Todo mundo está aqui.",
+                is_private=False,
+            ),
+        )
+    _ensure_everyone(db, group)
+    _ensure_cpt_role(db, group)
+    _ensure_owner_in_group(db, group, creator)
+    return group
+
+
 def ensure_default_group(db: Session, owner: User | None = None) -> Group:
     """Compat: devolve o time A (e garante A+B)."""
     a, _b = ensure_team_groups(db, owner=owner)
@@ -248,6 +283,7 @@ def ensure_team_groups(
         _ensure_owner_in_group(db, group, creator)
         groups.append(group)
 
+    _ensure_general_group(db, creator)
     db.commit()
     for g in groups:
         db.refresh(g)
@@ -354,7 +390,10 @@ def delete_group(db: Session, user: User, group_id: int) -> None:
     require_perm(db, group_id, user, Perm.MANAGE_GROUP)
     group = db.get(Group, group_id)
     assert group is not None
-    if _norm_name(group.name) in _TEAM_A_ALIASES | _TEAM_B_ALIASES or group.name in PROTECTED_GROUP_NAMES:
+    if (
+        _norm_name(group.name) in _TEAM_A_ALIASES | _TEAM_B_ALIASES | {GENERAL_NAME}
+        or group.name in PROTECTED_GROUP_NAMES
+    ):
         raise AppError(400, "Os times THE GANG A/B não podem ser apagados.")
     if not user.is_admin and group.created_by != user.id:
         my = _member_permissions(db, group_id, user.id)

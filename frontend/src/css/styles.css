@@ -393,9 +393,21 @@ textarea {
   pointer-events: none;
 }
 
-.server-pill:not(.home):not(.add):not(.team-a):not(.team-b) {
+.server-pill:not(.home):not(.add):not(.team-a):not(.team-b):not(.team-g) {
   background: #5865f2;
   color: #fff;
+}
+
+.server-pill.team-g {
+  background: #23a559;
+  color: #fff;
+  font-weight: 800;
+  font-size: 1rem;
+}
+
+.server-pill.team-g.active,
+.server-pill.team-g:hover {
+  box-shadow: 0 0 0 2px #3ddc84;
 }
 
 .server-pill:not(.home):not(.add):hover,

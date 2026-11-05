@@ -76,6 +76,21 @@ class ConnectionHub:
             calls = list(self._voice.values())
         await self._broadcast_all({"type": "voice_state", "calls": calls})
 
+    async def mark_user_voice(self, user_id: int, info: dict | None) -> None:
+        """Marca a call pelo HTTP, para quem não está na sala também ver a lista."""
+        async with self._lock:
+            clients = list(self._clients.get(user_id, []))
+            if info is None:
+                for client in clients:
+                    client.voice = None
+                self._voice.pop(user_id, None)
+            else:
+                if clients:
+                    clients[-1].voice = info
+                self._voice[user_id] = info
+            calls = list(self._voice.values())
+        await self._broadcast_all({"type": "voice_state", "calls": calls})
+
     def is_online(self, user_id: int) -> bool:
         return bool(self._clients.get(user_id))
 

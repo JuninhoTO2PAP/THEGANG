@@ -62,8 +62,7 @@ def list_groups(
     user: Annotated[User, Depends(get_current_user)],
     db: Annotated[Session, Depends(get_db)],
 ) -> list[GroupPublic]:
-    if user.is_admin:
-        group_service.ensure_team_groups(db, owner=user)
+    group_service.ensure_team_groups(db, owner=user if user.is_admin else None)
     return [_group_public(g, p) for g, p in group_service.list_groups_for_user(db, user)]
 
 

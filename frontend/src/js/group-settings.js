@@ -144,7 +144,7 @@ export function openGroupSettings(group, { onChanged, onDeleted, user } = {}) {
   function paintOverview() {
     const manage = can(current.my_permissions, Perm.MANAGE_GROUP);
     const slug = String(current.name || "").trim().toLowerCase().replace(/\s+/g, "-");
-    const isDefault = slug === "the-gang" || slug === "the-gang-a" || slug === "the-gang-b";
+    const isDefault = slug === "the-gang" || slug === "the-gang-a" || slug === "the-gang-b" || slug === "geral";
     const texts = channels.filter((c) => c.channel_type === "text").length;
     const voices = channels.filter((c) => c.channel_type === "voice").length;
     body.innerHTML = `

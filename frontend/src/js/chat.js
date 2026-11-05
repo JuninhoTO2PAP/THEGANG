@@ -215,6 +215,9 @@ export function renderChat(container, user, { onOpenSettings, onLogout }) {
     if (slug === "the-gang-b") {
       return { label: "THE GANG B", icon: "/icons/team-b.svg", kind: "b" };
     }
+    if (slug === "geral") {
+      return { label: "GERAL", icon: "", kind: "g", letter: "G" };
+    }
     return {
       label: group?.display_name || group?.name || "Grupo",
       icon: "",
@@ -223,11 +226,11 @@ export function renderChat(container, user, { onOpenSettings, onLogout }) {
   }
 
   function railGroups() {
-    const buckets = { a: [], b: [] };
+    const buckets = { a: [], b: [], g: [] };
     const rest = [];
     for (const group of groups) {
       const kind = teamMeta(group).kind;
-      if (kind === "a" || kind === "b") buckets[kind].push(group);
+      if (kind === "a" || kind === "b" || kind === "g") buckets[kind].push(group);
       else rest.push(group);
     }
     const pick = (list) => {
@@ -238,7 +241,7 @@ export function renderChat(container, user, { onOpenSettings, onLogout }) {
       });
       return [preferred || list.find((group) => group.id === activeGroup?.id) || list[0]];
     };
-    return [...pick(buckets.a), ...rest, ...pick(buckets.b)];
+    return [...pick(buckets.g), ...pick(buckets.a), ...rest, ...pick(buckets.b)];
   }
 
   function paintRail() {
@@ -248,7 +251,7 @@ export function renderChat(container, user, { onOpenSettings, onLogout }) {
         const active = activeGroup?.id === group.id ? "active" : "";
         const face = meta.icon
           ? `<img class="server-face" src="${meta.icon}" alt="${escapeAttr(meta.label)}" />`
-          : escapeHtml(meta.label.slice(0, 2).toUpperCase());
+          : escapeHtml(meta.letter || meta.label.slice(0, 2).toUpperCase());
         return `<button class="server-pill team-${meta.kind || "other"} ${active}" type="button" data-group="${group.id}" title="${escapeAttr(meta.label)}">${face}</button>`;
       })
       .join("");
@@ -326,26 +329,44 @@ export function renderChat(container, user, { onOpenSettings, onLogout }) {
     callChannelId = payload?.channelId ?? null;
     if (activeGroup) paintChannels();
   });
+  pullVoiceRoster();
+  setInterval(pullVoiceRoster, 3000);
 
   function peopleInChannel(channelId) {
-    const fromServer = voiceCalls.filter((person) => person.channel_id === channelId);
-    if (fromServer.length) {
-      return fromServer.map((person) => ({
+    const map = new Map();
+    for (const person of voiceCalls.filter((item) => item.channel_id === channelId)) {
+      map.set(person.user_id, {
         userId: person.user_id,
         name: person.nickname,
         avatar_url: person.avatar_url,
-      }));
+      });
     }
-    if (callChannelId !== channelId) return [];
-    return callPeople.map((person) => {
-      const id = Number(String(person.identity || "").replace(/^user-/, ""));
-      const member = members.find((item) => item.id === id);
-      return {
-        userId: id,
-        name: member?.nickname || person.name,
-        avatar_url: member?.avatar_url || null,
-      };
-    });
+    if (callChannelId === channelId) {
+      for (const person of callPeople) {
+        const id = Number(String(person.identity || "").replace(/^user-/, ""));
+        if (map.has(id)) continue;
+        const member = members.find((item) => item.id === id);
+        map.set(id, {
+          userId: id,
+          name: member?.nickname || person.name,
+          avatar_url: member?.avatar_url || null,
+        });
+      }
+    }
+    return [...map.values()];
+  }
+
+  async function pullVoiceRoster() {
+    try {
+      const calls = await api("/api/voice/roster");
+      if (!Array.isArray(calls)) return;
+      const next = JSON.stringify(calls);
+      if (next === JSON.stringify(voiceCalls)) return;
+      voiceCalls = calls;
+      if (activeGroup) paintChannels();
+    } catch {
+      /* a API antiga ainda não publica a lista */
+    }
   }
 
   function callPersonHtml(person) {

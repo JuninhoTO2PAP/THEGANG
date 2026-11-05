@@ -735,6 +735,7 @@ export async function leaveVoiceCall() {
     offEventWs = null;
   }
   sendVoiceLeave();
+  api("/api/voice/leave", { method: "POST" }).catch(() => {});
   document.querySelector(".screen-lightbox")?.remove();
   stageRoot?.remove();
   stageRoot = null;
