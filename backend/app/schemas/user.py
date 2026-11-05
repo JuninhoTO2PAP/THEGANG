@@ -6,9 +6,16 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 
-FF_ROLES = {"cpt", "r1", "r2", "r3", "suporte"}
+FF_ROLES = {"coach", "r1", "r2", "r3", "sup"}
+LEGACY_FF_ROLES = {
+    "cpt": "coach",
+    "igl": "coach",
+    "suporte": "sup",
+    "support": "sup",
+}
 FF_REGIONS = {"BR", "LATAM", "NA", "EU", "ASIA", "OTHER"}
 BANNER_THEMES = {"gold", "ember", "navy", "violet", "forest", "crimson"}
+ACCENTS = {"gold", "orange", "ember", "blue", "purple", "pink", "red", "green", "cyan"}
 
 
 class UserPublic(BaseModel):
@@ -28,6 +35,7 @@ class UserPublic(BaseModel):
     ff_role: str | None = None
     ff_region: str | None = None
     banner_theme: str = "gold"
+    accent: str = "gold"
     last_seen: datetime | None
     created_at: datetime
 
@@ -114,8 +122,9 @@ class UserUpdate(BaseModel):
         if value is None or value.strip() == "":
             return None
         cleaned = value.strip().lower()
+        cleaned = LEGACY_FF_ROLES.get(cleaned, cleaned)
         if cleaned not in FF_ROLES:
-            raise ValueError("Função inválida. Use CPT, R1, R2, R3 ou SUPORTE.")
+            raise ValueError("Função inválida. Use COACH, R1, R2, R3 ou SUP.")
         return cleaned
 
     @field_validator("ff_region")
@@ -136,4 +145,16 @@ class UserUpdate(BaseModel):
         cleaned = value.strip().lower()
         if cleaned not in BANNER_THEMES:
             raise ValueError("Tema de banner inválido.")
+        return cleaned
+
+
+class AccentUpdate(BaseModel):
+    accent: str = Field(min_length=2, max_length=16)
+
+    @field_validator("accent")
+    @classmethod
+    def _accent(cls, value: str) -> str:
+        cleaned = value.strip().lower()
+        if cleaned not in ACCENTS:
+            raise ValueError("Cor de destaque inválida.")
         return cleaned

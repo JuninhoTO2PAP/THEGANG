@@ -11,7 +11,7 @@ from app.core.errors import AppError
 from app.core.security import hash_password, verify_password
 from app.db.session import get_db
 from app.models import User
-from app.schemas.user import PasswordChange, StatusUpdate, UserPublic, UserUpdate
+from app.schemas.user import AccentUpdate, PasswordChange, StatusUpdate, UserPublic, UserUpdate
 from app.services.ws_hub import hub
 from app.utils.time import utcnow
 
@@ -63,6 +63,21 @@ def clear_avatar(
 ) -> User:
     """Remove a foto de perfil (o arquivo antigo pode ficar em disco)."""
     user.avatar_url = None
+    user.last_seen = utcnow()
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+@router.patch("/me/accent", response_model=UserPublic)
+def update_accent(
+    body: AccentUpdate,
+    user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[Session, Depends(get_db)],
+) -> User:
+    """Grava a cor de destaque na conta, para voltar igual em qualquer aparelho."""
+    user.accent = body.accent
     user.last_seen = utcnow()
     db.add(user)
     db.commit()

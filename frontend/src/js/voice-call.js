@@ -2,7 +2,7 @@
 
 import { api } from "./api.js";
 import { Perm, can } from "./perms.js";
-import { playCallJoin } from "./sounds.js";
+import { playCallJoin, playCallLeave } from "./sounds.js";
 import { toast } from "./ui.js";
 import { onWs, sendVoiceJoin, sendVoiceLeave } from "./ws.js";
 
@@ -14,6 +14,7 @@ let joinedChannelId = null;
 let dockNode = null;
 let rosterWatch = null;
 let voiceBeat = null;
+let soundEpoch = 0;
 
 function stopVoiceBeat() {
   if (voiceBeat) {
@@ -94,6 +95,7 @@ function escapeHtml(value) {
 
 export async function startVoiceCall(channel, mountEl, { user, group } = {}) {
   await leaveVoiceCall();
+  const epoch = soundEpoch;
 
   const canStartEvent =
     !!user &&
@@ -626,11 +628,18 @@ export async function startVoiceCall(channel, mountEl, { user, group } = {}) {
     room.on(mod.RoomEvent.ParticipantConnected, (participant) => {
       ensureTile(participant, "user");
       syncRoster();
-      toast(`${displayName(participant)} entrou na call.`);
+      if (epoch === soundEpoch) {
+        playCallJoin();
+        toast(`${displayName(participant)} entrou na call.`);
+      }
     });
     room.on(mod.RoomEvent.ParticipantDisconnected, (participant) => {
       removeTilesFor(participant.identity);
       syncRoster();
+      if (epoch === soundEpoch) {
+        playCallLeave();
+        toast(`${displayName(participant)} saiu da call.`);
+      }
     });
     room.on(mod.RoomEvent.ActiveSpeakersChanged, (speakers) => {
       paintSpeakers(speakers);
@@ -747,6 +756,9 @@ export async function startVoiceCall(channel, mountEl, { user, group } = {}) {
 }
 
 export async function leaveVoiceCall() {
+  const wasIn = Boolean(activeRoom);
+  soundEpoch += 1;
+  if (wasIn) playCallLeave();
   clearEventTimer();
   if (offEventWs) {
     offEventWs();

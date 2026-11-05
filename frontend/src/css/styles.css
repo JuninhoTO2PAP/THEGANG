@@ -1978,11 +1978,19 @@ textarea {
   height: 28px;
   border-radius: 50%;
   border: 2px solid transparent;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 800;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
 }
 
 .swatch.active {
   border-color: #fff;
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.2);
+  outline: 3px solid #fff;
+  outline-offset: 2px;
+  transform: scale(1.08);
 }
 
 .quick-list {
@@ -3761,6 +3769,82 @@ textarea {
 .gang-home-edit h3 {
   margin: 0;
   color: var(--gold);
+}
+
+.btn.danger-text {
+  color: #f23f43;
+}
+
+.admin-count {
+  margin: 0 0 12px;
+  color: var(--muted);
+}
+
+.admin-list {
+  display: grid;
+  gap: 12px;
+}
+
+.admin-card {
+  background: #2b2d31;
+  border-radius: 14px;
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+  border: 1px solid transparent;
+}
+
+.admin-card.is-online {
+  border-color: rgba(35, 165, 89, 0.45);
+}
+
+.admin-card header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.admin-card header strong {
+  margin-right: 4px;
+}
+
+.admin-card dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px 16px;
+  margin: 0;
+}
+
+.admin-card dt {
+  color: var(--muted-2);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.admin-card dd {
+  margin: 2px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.admin-card code {
+  color: #c4b5fd;
+}
+
+.admin-reset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: end;
+}
+
+.admin-reset label {
+  flex: 1;
+  min-width: 220px;
 }
 
 @media (max-width: 900px) {

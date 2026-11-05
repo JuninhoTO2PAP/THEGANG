@@ -16,12 +16,22 @@ export const ACCENTS = [
 ];
 
 export const FF_ROLES = [
-  { id: "cpt", label: "CPT" },
+  { id: "coach", label: "COACH" },
   { id: "r1", label: "R1" },
   { id: "r2", label: "R2" },
   { id: "r3", label: "R3" },
-  { id: "suporte", label: "SUPORTE" },
+  { id: "sup", label: "SUP" },
 ];
+
+const LEGACY_FF_ROLES = {
+  cpt: "COACH",
+  igl: "COACH",
+  suporte: "SUP",
+  support: "SUP",
+  entry: "Entry",
+  sniper: "Sniper",
+  flex: "Flex",
+};
 
 export const FF_REGIONS = [
   { id: "BR", label: "Brasil" },
@@ -62,9 +72,20 @@ export function getTheme() {
   return localStorage.getItem(THEME_KEY) === "light" ? "light" : "dark";
 }
 
+function paintAccent(hex) {
+  const root = document.documentElement;
+  const n = Number.parseInt(String(hex).slice(1), 16);
+  const r = (n >> 16) & 255;
+  const g = (n >> 8) & 255;
+  const b = n & 255;
+  root.style.setProperty("--accent", hex);
+  root.style.setProperty("--accent-2", hex);
+  root.style.setProperty("--accent-soft", `rgba(${r}, ${g}, ${b}, 0.16)`);
+}
+
 export function applyAccent(id) {
   const found = ACCENTS.find((item) => item.id === id) || ACCENTS[0];
-  document.documentElement.style.setProperty("--accent", found.value);
+  paintAccent(found.value);
   localStorage.setItem(ACCENT_KEY, found.id);
 }
 
@@ -73,7 +94,7 @@ export function getAccent() {
 }
 
 export function ffRoleLabel(id) {
-  return FF_ROLES.find((r) => r.id === id)?.label || id || "—";
+  return FF_ROLES.find((r) => r.id === id)?.label || LEGACY_FF_ROLES[id] || id || "—";
 }
 
 export function initTheme() {

@@ -90,3 +90,13 @@ def get_invites(
 ) -> list[InvitePublic]:
     """Lista convites do time, inclusive os já usados."""
     return [InvitePublic.model_validate(item) for item in auth_service.list_invites(db)]
+
+
+@router.delete("/invites/{invite_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_invite(
+    invite_id: int,
+    _admin: Annotated[User, Depends(get_current_admin)],
+    db: Annotated[Session, Depends(get_db)],
+) -> None:
+    """Apaga um convite, usado ou não. Só administrador."""
+    auth_service.delete_invite(db, invite_id)

@@ -288,6 +288,103 @@ def test_stubs_de_fase_futura(client, seeded):
     assert client.post("/api/push/subscribe", json={}).status_code in {401, 422}
 
 
+def test_admin_apaga_convite_e_membro_nao(client, seeded):
+    admin = _admin_token(client)
+    created = client.post(
+        "/api/auth/invites",
+        headers=_auth(admin),
+        json={"expires_in_days": 0, "team": "a"},
+    )
+    assert created.status_code == 201
+    invite_id = created.json()["id"]
+    code = created.json()["code"]
+
+    member = _register(client, code=_criar_convite(client), username="membro2", email="membro2@example.com")
+    assert member.status_code == 201
+    forbidden = client.delete(
+        f"/api/auth/invites/{invite_id}",
+        headers=_auth(member.json()["tokens"]["access_token"]),
+    )
+    assert forbidden.status_code == 403
+
+    deleted = client.delete(f"/api/auth/invites/{invite_id}", headers=_auth(admin))
+    assert deleted.status_code == 204
+    listing = client.get("/api/auth/invites", headers=_auth(admin))
+    assert all(item["code"] != code for item in listing.json())
+
+
+def test_cor_fica_na_conta(client, seeded):
+    token = _admin_token(client)
+    saved = client.patch(
+        "/api/users/me/accent",
+        headers=_auth(token),
+        json={"accent": "blue"},
+    )
+    assert saved.status_code == 200
+    assert saved.json()["accent"] == "blue"
+    me = client.get("/api/auth/me", headers=_auth(token))
+    assert me.json()["accent"] == "blue"
+    invalid = client.patch(
+        "/api/users/me/accent",
+        headers=_auth(token),
+        json={"accent": "arcoiris"},
+    )
+    assert invalid.status_code == 422
+
+
+def test_funcao_antiga_vira_coach(client, seeded):
+    token = _admin_token(client)
+    saved = client.patch(
+        "/api/users/me",
+        headers=_auth(token),
+        json={"nickname": "Juninho", "username": "juninho", "ff_role": "cpt"},
+    )
+    assert saved.status_code == 200
+    assert saved.json()["ff_role"] == "coach"
+
+
+def test_painel_admin_so_o_dono_ve_logins(client, seeded):
+    code = _criar_convite(client)
+    member = _register(
+        client,
+        code=code,
+        username="jogador",
+        email="jogador@example.com",
+        nickname="Jogador",
+    )
+    assert member.status_code == 201
+    member_token = member.json()["tokens"]["access_token"]
+    hidden = client.get("/api/admin/members", headers=_auth(member_token))
+    assert hidden.status_code == 403
+
+    admin = _admin_token(client)
+    listing = client.get("/api/admin/members", headers=_auth(admin))
+    assert listing.status_code == 200
+    body = listing.json()
+    usernames = {item["username"] for item in body}
+    assert "juninho" in usernames
+    assert "jogador" in usernames
+    jogador = next(item for item in body if item["username"] == "jogador")
+    assert jogador["email"] == "jogador@example.com"
+    assert "hashed_password" not in jogador
+    assert "password" not in jogador
+
+    reset = client.post(
+        f"/api/admin/members/{jogador['id']}/password",
+        headers=_auth(admin),
+        json={"new_password": "NovaSenha9"},
+    )
+    assert reset.status_code == 204
+    blocked = client.post(
+        f"/api/admin/members/{jogador['id']}/password",
+        headers=_auth(member_token),
+        json={"new_password": "OutraSenha9"},
+    )
+    assert blocked.status_code == 403
+    again = _login(client, "jogador", "NovaSenha9")
+    assert again.status_code == 200
+
+
 def test_seed_idempotente(seeded):
     from app.db.seed import run_seed
 

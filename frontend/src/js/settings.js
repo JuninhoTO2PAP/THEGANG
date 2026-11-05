@@ -18,7 +18,9 @@ import {
   FF_ROLES,
   applyAccent,
   applyTheme,
+  ffRoleLabel,
   formatDay,
+  formatTime,
   getAccent,
   getTheme,
   initials,
@@ -34,6 +36,7 @@ const MENU = [
   { id: "voz", label: "Voz e vídeo", icon: "🎙️" },
   { id: "atalhos", label: "Atalhos", icon: "⌨️" },
   { id: "convites", label: "Convites", icon: "🔗", adminOnly: true },
+  { id: "admin", label: "Administrador", icon: "♛", adminOnly: true },
 ];
 
 export function renderSettings(
@@ -118,6 +121,10 @@ export function renderSettings(
     }
     if (tab === "convites") {
       await paintInvites(body);
+      return;
+    }
+    if (tab === "admin") {
+      await paintAdmin(body);
     }
   }
 
@@ -610,9 +617,21 @@ export function renderSettings(
 
   function bindAccent() {
     body.querySelectorAll("[data-accent]").forEach((button) => {
-      button.addEventListener("click", () => {
-        applyAccent(button.dataset.accent);
+      button.addEventListener("click", async () => {
+        const accent = button.dataset.accent;
+        applyAccent(accent);
         paintBody();
+        try {
+          const updated = await api("/api/users/me/accent", {
+            method: "PATCH",
+            body: { accent },
+          });
+          current = updated;
+          persistUser(updated);
+          onUserUpdated?.(updated);
+        } catch (error) {
+          toast(error.message || "Cor salva neste aparelho.", true);
+        }
       });
     });
   }
@@ -776,7 +795,9 @@ function accentBlock() {
         ${ACCENTS.map(
           (item) => `
             <button type="button" class="swatch ${item.id === current ? "active" : ""}"
-              data-accent="${item.id}" style="background:${item.value}" title="${item.id}"></button>
+              data-accent="${item.id}" style="background:${item.value}" title="${item.id}">${
+                item.id === current ? "✓" : ""
+              }</button>
           `
         ).join("")}
       </div>
@@ -830,6 +851,7 @@ async function paintInvites(body) {
                 <code>${invite.code}</code>
                 <span class="badge ${used ? "used" : "ok"}">${used ? "Usado" : "Disponível"}</span>
                 <button type="button" class="btn btn-ghost" data-copy="${invite.code}">Copiar</button>
+                <button type="button" class="btn btn-ghost danger-text" data-delete="${invite.id}">Excluir</button>
               </div>
               <div class="soon">Time ${String(invite.team || "a").toUpperCase()} · ${invite.expires_at ? `Expira: ${formatDay(invite.expires_at)}` : "nunca expira"}</div>
             </div>
@@ -843,6 +865,20 @@ async function paintInvites(body) {
             toast("Convite copiado.");
           } catch {
             toast("Não deu para copiar.", true);
+          }
+        });
+      });
+      list.querySelectorAll("[data-delete]").forEach((button) => {
+        button.addEventListener("click", async () => {
+          const row = button.closest(".invite-row");
+          const code = row?.querySelector("code")?.textContent || "este convite";
+          if (!window.confirm(`Excluir o convite ${code}?`)) return;
+          try {
+            await api(`/api/auth/invites/${button.dataset.delete}`, { method: "DELETE" });
+            toast("Convite excluído.");
+            await load();
+          } catch (error) {
+            toast(error.message, true);
           }
         });
       });
@@ -872,6 +908,96 @@ async function paintInvites(body) {
   });
 
   await load();
+}
+
+async function paintAdmin(body) {
+  body.innerHTML = `
+    <h2>Administrador</h2>
+    <p class="section-lead">Só você entra aqui. Dá para ver quem está no app, o login de cada conta e os dados da carta.</p>
+    <p class="hint">A senha não fica visível. Se alguém perder a senha, defina uma nova aqui e passe para a pessoa. O login é o usuário ou o e-mail.</p>
+    <div id="admin-list"><p class="soon">Carregando…</p></div>
+  `;
+  const list = body.querySelector("#admin-list");
+  try {
+    const members = await api("/api/admin/members");
+    if (!members.length) {
+      list.innerHTML = `<p class="soon">Nenhuma conta ainda.</p>`;
+      return;
+    }
+    const online = members.filter((member) => member.is_online).length;
+    list.innerHTML = `
+      <p class="admin-count">${online} online · ${members.length} contas</p>
+      <div class="admin-list">
+        ${members.map((member) => adminCard(member)).join("")}
+      </div>
+    `;
+    list.querySelectorAll("[data-copy]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(button.dataset.copy);
+          toast("Copiado.");
+        } catch {
+          toast(button.dataset.copy);
+        }
+      });
+    });
+    list.querySelectorAll("form.admin-reset").forEach((form) => {
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const password = String(new FormData(form).get("new_password") || "");
+        const name = form.dataset.name || "essa pessoa";
+        if (!window.confirm(`Definir uma nova senha para ${name}? A senha antiga deixa de funcionar.`)) {
+          return;
+        }
+        try {
+          await api(`/api/admin/members/${form.dataset.user}/password`, {
+            method: "POST",
+            body: { new_password: password },
+          });
+          form.reset();
+          toast(`Senha de ${name} atualizada. Passe a nova senha para a pessoa.`);
+        } catch (error) {
+          toast(error.message, true);
+        }
+      });
+    });
+  } catch (error) {
+    list.innerHTML = `<p class="soon">${escapeHtml(error.message)}</p>`;
+  }
+}
+
+function adminCard(member) {
+  const role = member.ff_role ? ffRoleLabel(member.ff_role) : "Sem função";
+  const seen = member.last_seen
+    ? `${formatDay(member.last_seen)} · ${formatTime(member.last_seen)}`
+    : "—";
+  return `
+    <article class="admin-card ${member.is_online ? "is-online" : ""}">
+      <header>
+        <strong>${escapeHtml(member.nickname)}</strong>
+        <span class="badge ${member.is_online ? "ok" : ""}">${member.is_online ? "Online" : "Offline"}</span>
+        ${member.is_admin ? `<span class="badge ok">Admin</span>` : ""}
+      </header>
+      <dl>
+        <div><dt>Login</dt><dd><code>${escapeHtml(member.username)}</code><button type="button" class="btn btn-ghost" data-copy="${escapeAttr(member.username)}">Copiar</button></dd></div>
+        <div><dt>E-mail</dt><dd><code>${escapeHtml(member.email)}</code><button type="button" class="btn btn-ghost" data-copy="${escapeAttr(member.email)}">Copiar</button></dd></div>
+        <div><dt>ID da conta</dt><dd>${member.id}</dd></div>
+        <div><dt>Função</dt><dd>${escapeHtml(role)}</dd></div>
+        <div><dt>ID Free Fire</dt><dd>${escapeHtml(member.ff_id || "—")}</dd></div>
+        <div><dt>Nick FF</dt><dd>${escapeHtml(member.ff_nick || "—")}</dd></div>
+        <div><dt>Região</dt><dd>${escapeHtml(member.ff_region || "—")}</dd></div>
+        <div><dt>Time</dt><dd>${escapeHtml(member.team || "—")}</dd></div>
+        <div><dt>Visto por último</dt><dd>${escapeHtml(seen)}</dd></div>
+        <div><dt>Conta criada</dt><dd>${escapeHtml(formatDay(member.created_at))}</dd></div>
+      </dl>
+      <form class="admin-reset" data-user="${member.id}" data-name="${escapeAttr(member.nickname)}">
+        <label>Nova senha, se ${escapeHtml(member.nickname)} perdeu a antiga
+          <input type="text" name="new_password" minlength="8" maxlength="128" required placeholder="Letras e números, mínimo 8" autocomplete="off" />
+        </label>
+        <button class="btn btn-secondary" type="submit">Definir senha</button>
+      </form>
+    </article>
+  `;
 }
 
 function escapeHtml(value) {

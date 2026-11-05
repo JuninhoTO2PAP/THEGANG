@@ -4,7 +4,7 @@ import { api, getStoredUser, saveSession, getAccessToken } from "./api.js";
 import { logout, renderAuth } from "./auth.js";
 import { renderChat } from "./chat.js";
 import { renderSettings } from "./settings.js";
-import { initTheme, toast } from "./ui.js";
+import { applyAccent, getAccent, initTheme, toast } from "./ui.js";
 import { setupPush } from "./push.js";
 import { disconnectWs } from "./ws.js";
 
@@ -61,13 +61,25 @@ function renderShell() {
   });
 }
 
+function syncAccent(user) {
+  if (!user?.accent) return user;
+  const local = getAccent();
+  if (user.accent === "gold" && local !== "gold") {
+    applyAccent(local);
+    api("/api/users/me/accent", { method: "PATCH", body: { accent: local } }).catch(() => {});
+    return { ...user, accent: local };
+  }
+  applyAccent(user.accent);
+  return user;
+}
+
 async function boot() {
   initTheme();
   currentUser = getStoredUser();
   if (!currentUser || !getAccessToken()) {
     renderAuth(root, {
       onSuccess(user) {
-        currentUser = user;
+        currentUser = syncAccent(user);
         view = "chat";
         renderShell();
       },
@@ -75,7 +87,7 @@ async function boot() {
     return;
   }
   try {
-    const me = await api("/api/auth/me");
+    const me = syncAccent(await api("/api/auth/me"));
     currentUser = me;
     const refresh = localStorage.getItem("tg_refresh");
     const access = getAccessToken();

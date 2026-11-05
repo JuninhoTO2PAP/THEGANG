@@ -138,6 +138,11 @@ def _revoke_all(db: Session, user_id: int) -> None:
     db.execute(update(RefreshToken).where(RefreshToken.user_id == user_id).values(revoked=True))
 
 
+def revoke_sessions(db: Session, user_id: int) -> None:
+    """Invalida os refresh tokens. Quem chama dá o commit."""
+    _revoke_all(db, user_id)
+
+
 def refresh_session(db: Session, refresh_token: str) -> tuple[User, TokenPair]:
     """Troca o refresh por um par novo. Reusar um refresh já gasto derruba as sessões."""
     payload = decode_token(refresh_token, expected_type="refresh")
@@ -220,6 +225,15 @@ def create_invite(db: Session, admin: User, data: InviteCreate) -> InviteCode:
 
 def list_invites(db: Session) -> list[InviteCode]:
     return list(db.scalars(select(InviteCode).order_by(InviteCode.id.desc())).all())
+
+
+def delete_invite(db: Session, invite_id: int) -> None:
+    """Apaga o código. A conta de quem já usou continua existindo."""
+    invite = db.get(InviteCode, invite_id)
+    if invite is None:
+        raise AppError(404, "Convite não encontrado.")
+    db.delete(invite)
+    db.commit()
 
 
 def _new_invite_code(db: Session) -> str:

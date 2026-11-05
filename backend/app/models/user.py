@@ -27,5 +27,6 @@ class User(Base):
     ff_role: Mapped[str | None] = mapped_column(String(16), nullable=True)
     ff_region: Mapped[str | None] = mapped_column(String(16), nullable=True)
     banner_theme: Mapped[str] = mapped_column(String(16), default="gold")
+    accent: Mapped[str] = mapped_column(String(16), default="gold")
     last_seen: Mapped[datetime | None] = mapped_column(UTCDateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime)

@@ -30,12 +30,31 @@ function tone(freq, start, dur, type = "sine", gain = 0.08) {
   osc.stop(ac.currentTime + start + dur + 0.02);
 }
 
-/** Entrada na call — acorde dourado curto. */
+/** Entrada na call — acorde que sobe. */
 export function playCallJoin() {
   if (!getNotifyPrefs().sound) return;
   tone(392, 0, 0.12, "triangle", 0.07);
   tone(523.25, 0.08, 0.16, "triangle", 0.08);
   tone(659.25, 0.16, 0.22, "sine", 0.06);
+}
+
+/** Saída da call — tom grave que desce, bem diferente da entrada. */
+export function playCallLeave() {
+  if (!getNotifyPrefs().sound) return;
+  const ac = audio();
+  if (!ac) return;
+  const osc = ac.createOscillator();
+  const gain = ac.createGain();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(392, ac.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(130, ac.currentTime + 0.34);
+  gain.gain.setValueAtTime(0.0001, ac.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.09, ac.currentTime + 0.03);
+  gain.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + 0.38);
+  osc.connect(gain);
+  gain.connect(ac.destination);
+  osc.start(ac.currentTime);
+  osc.stop(ac.currentTime + 0.4);
 }
 
 /** Menção @você — bip metálico. */
