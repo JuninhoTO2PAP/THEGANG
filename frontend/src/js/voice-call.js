@@ -645,10 +645,24 @@ export async function startVoiceCall(channel, mountEl, { user, group } = {}) {
       paintSpeakers(speakers);
     });
 
+    const dropIfGone = async () => {
+      if (epoch === soundEpoch && stageRoot?.isConnected) return false;
+      stopVoiceBeat();
+      try {
+        await room.disconnect();
+      } catch {
+        /* a call já foi substituída */
+      }
+      if (activeRoom === room) activeRoom = null;
+      return true;
+    };
+
     await room.connect(token.url, token.token);
+    if (await dropIfGone()) return;
     sendVoiceJoin(channel.id);
     startVoiceBeat(channel.id);
     await room.localParticipant.setMicrophoneEnabled(true);
+    if (await dropIfGone()) return;
 
     attachExisting(room.localParticipant);
     for (const p of room.remoteParticipants.values()) {
@@ -672,14 +686,24 @@ export async function startVoiceCall(channel, mountEl, { user, group } = {}) {
       paintEvent();
     });
 
-    mountEl.querySelector("#call-mute").addEventListener("click", async () => {
+    const muteBtn = stageRoot?.querySelector("#call-mute");
+    const deafenBtn = stageRoot?.querySelector("#call-deafen");
+    const camBtn = stageRoot?.querySelector("#call-cam");
+    const screenBtn = stageRoot?.querySelector("#call-screen");
+    const leaveBtn = stageRoot?.querySelector("#call-leave");
+    if (!muteBtn || !deafenBtn || !camBtn || !screenBtn || !leaveBtn) {
+      if (activeRoom === room) await leaveVoiceCall();
+      return;
+    }
+
+    muteBtn.addEventListener("click", async () => {
       muted = !muted;
       await room.localParticipant.setMicrophoneEnabled(!muted);
-      mountEl.querySelector("#call-mute").classList.toggle("off", muted);
-      mountEl.querySelector("#call-mute").textContent = muted ? "🔇" : "🎤";
+      muteBtn.classList.toggle("off", muted);
+      muteBtn.textContent = muted ? "🔇" : "🎤";
     });
 
-    mountEl.querySelector("#call-deafen").addEventListener("click", () => {
+    deafenBtn.addEventListener("click", () => {
       deafened = !deafened;
       document.querySelectorAll("audio[data-identity]").forEach((el) => {
         el.muted = deafened;
@@ -687,18 +711,18 @@ export async function startVoiceCall(channel, mountEl, { user, group } = {}) {
       if (deafened && !muted) {
         muted = true;
         room.localParticipant.setMicrophoneEnabled(false);
-        mountEl.querySelector("#call-mute").classList.add("off");
-        mountEl.querySelector("#call-mute").textContent = "🔇";
+        muteBtn.classList.add("off");
+        muteBtn.textContent = "🔇";
       }
-      mountEl.querySelector("#call-deafen").classList.toggle("off", deafened);
-      mountEl.querySelector("#call-deafen").textContent = deafened ? "🙉" : "🎧";
+      deafenBtn.classList.toggle("off", deafened);
+      deafenBtn.textContent = deafened ? "🙉" : "🎧";
     });
 
-    mountEl.querySelector("#call-cam").addEventListener("click", async () => {
+    camBtn.addEventListener("click", async () => {
       try {
         camOn = !camOn;
         await room.localParticipant.setCameraEnabled(camOn);
-        mountEl.querySelector("#call-cam").classList.toggle("on", camOn);
+        camBtn.classList.toggle("on", camOn);
         if (camOn) {
           const pub = [...room.localParticipant.videoTrackPublications.values()].find(
             (p) => p.source === mod.Track.Source.Camera
@@ -717,11 +741,11 @@ export async function startVoiceCall(channel, mountEl, { user, group } = {}) {
       }
     });
 
-    mountEl.querySelector("#call-screen").addEventListener("click", async () => {
+    screenBtn.addEventListener("click", async () => {
       try {
         screenOn = !screenOn;
         await room.localParticipant.setScreenShareEnabled(screenOn);
-        mountEl.querySelector("#call-screen").classList.toggle("on", screenOn);
+        screenBtn.classList.toggle("on", screenOn);
         if (screenOn) {
           const pub = [...room.localParticipant.videoTrackPublications.values()].find(
             (p) => p.source === mod.Track.Source.ScreenShare
@@ -736,20 +760,17 @@ export async function startVoiceCall(channel, mountEl, { user, group } = {}) {
         }
       } catch (error) {
         screenOn = false;
-        mountEl.querySelector("#call-screen").classList.remove("on");
+        screenBtn.classList.remove("on");
         toast(error.message || "Não foi possível compartilhar a tela.", true);
       }
     });
 
-    mountEl.querySelector("#call-leave").addEventListener("click", async () => {
+    leaveBtn.addEventListener("click", async () => {
       await leaveVoiceCall();
-      statusEl.textContent = "Saiu da call.";
-      mountEl.querySelector(".call-controls")?.remove();
-      panelEl.innerHTML = "";
-      videosEl.innerHTML = "";
     });
   } catch (error) {
-    statusEl.textContent = error.message;
+    if (epoch !== soundEpoch) return;
+    if (statusEl) statusEl.textContent = error.message;
     toast(error.message, true);
     paintEvent();
   }

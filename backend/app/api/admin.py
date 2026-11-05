@@ -32,3 +32,13 @@ def reset_member_password(
 ) -> None:
     """Define uma senha nova quando a pessoa perdeu a antiga. A senha velha não é revelada."""
     admin_service.reset_password(db, user_id, body.new_password)
+
+
+@router.delete("/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_member(
+    user_id: int,
+    admin: Annotated[User, Depends(get_current_admin)],
+    db: Annotated[Session, Depends(get_db)],
+) -> None:
+    """Apaga a conta. O administrador não pode apagar a própria."""
+    admin_service.delete_member(db, admin, user_id)

@@ -366,6 +366,9 @@ def test_painel_admin_so_o_dono_ve_logins(client, seeded):
     assert "jogador" in usernames
     jogador = next(item for item in body if item["username"] == "jogador")
     assert jogador["email"] == "jogador@example.com"
+    assert jogador["invite_code"] == code
+    owner = next(item for item in body if item["username"] == "juninho")
+    assert owner["invite_code"] is None
     assert "hashed_password" not in jogador
     assert "password" not in jogador
 
@@ -383,6 +386,27 @@ def test_painel_admin_so_o_dono_ve_logins(client, seeded):
     assert blocked.status_code == 403
     again = _login(client, "jogador", "NovaSenha9")
     assert again.status_code == 200
+
+    forbidden_delete = client.delete(
+        f"/api/admin/members/{jogador['id']}",
+        headers=_auth(member_token),
+    )
+    assert forbidden_delete.status_code == 403
+    keep_admin = client.delete(
+        f"/api/admin/members/{owner['id']}",
+        headers=_auth(admin),
+    )
+    assert keep_admin.status_code == 400
+
+    removed = client.delete(
+        f"/api/admin/members/{jogador['id']}",
+        headers=_auth(admin),
+    )
+    assert removed.status_code == 204
+    gone = _login(client, "jogador", "NovaSenha9")
+    assert gone.status_code == 401
+    listing = client.get("/api/admin/members", headers=_auth(admin))
+    assert all(item["username"] != "jogador" for item in listing.json())
 
 
 def test_seed_idempotente(seeded):

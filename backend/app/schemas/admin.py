@@ -20,6 +20,7 @@ class AdminMember(BaseModel):
     ff_role: str | None = None
     ff_region: str | None = None
     team: str | None = None
+    invite_code: str | None = None
     last_seen: datetime | None = None
     created_at: datetime
 

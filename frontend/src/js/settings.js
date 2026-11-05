@@ -961,6 +961,21 @@ async function paintAdmin(body) {
         }
       });
     });
+    list.querySelectorAll("[data-delete-user]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const name = button.dataset.name || "essa pessoa";
+        if (!window.confirm(`Excluir a conta de ${name}? Essa pessoa deixa de entrar no THE GANG.`)) {
+          return;
+        }
+        try {
+          await api(`/api/admin/members/${button.dataset.deleteUser}`, { method: "DELETE" });
+          toast(`Conta de ${name} excluída.`);
+          await paintAdmin(body);
+        } catch (error) {
+          toast(error.message, true);
+        }
+      });
+    });
   } catch (error) {
     list.innerHTML = `<p class="soon">${escapeHtml(error.message)}</p>`;
   }
@@ -987,6 +1002,11 @@ function adminCard(member) {
         <div><dt>Nick FF</dt><dd>${escapeHtml(member.ff_nick || "—")}</dd></div>
         <div><dt>Região</dt><dd>${escapeHtml(member.ff_region || "—")}</dd></div>
         <div><dt>Time</dt><dd>${escapeHtml(member.team || "—")}</dd></div>
+        <div><dt>Convite</dt><dd>${
+          member.invite_code
+            ? `<code>${escapeHtml(member.invite_code)}</code><button type="button" class="btn btn-ghost" data-copy="${escapeAttr(member.invite_code)}">Copiar</button>`
+            : "—"
+        }</dd></div>
         <div><dt>Visto por último</dt><dd>${escapeHtml(seen)}</dd></div>
         <div><dt>Conta criada</dt><dd>${escapeHtml(formatDay(member.created_at))}</dd></div>
       </dl>
@@ -996,6 +1016,11 @@ function adminCard(member) {
         </label>
         <button class="btn btn-secondary" type="submit">Definir senha</button>
       </form>
+      ${
+        member.is_admin
+          ? ""
+          : `<button type="button" class="btn btn-ghost danger-text" data-delete-user="${member.id}" data-name="${escapeAttr(member.nickname)}">Excluir conta</button>`
+      }
     </article>
   `;
 }
