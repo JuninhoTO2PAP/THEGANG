@@ -16,12 +16,11 @@ export const ACCENTS = [
 ];
 
 export const FF_ROLES = [
-  { id: "igl", label: "IGL" },
-  { id: "entry", label: "Entry" },
-  { id: "support", label: "Support" },
-  { id: "sniper", label: "Sniper" },
-  { id: "flex", label: "Flex" },
-  { id: "coach", label: "Coach" },
+  { id: "cpt", label: "CPT" },
+  { id: "r1", label: "R1" },
+  { id: "r2", label: "R2" },
+  { id: "r3", label: "R3" },
+  { id: "suporte", label: "SUPORTE" },
 ];
 
 export const FF_REGIONS = [

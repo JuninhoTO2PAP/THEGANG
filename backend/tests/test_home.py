@@ -79,7 +79,7 @@ def test_home_e_perfil_ff(client, seeded):
             "username": "ffplayer",
             "ff_id": "99887766",
             "ff_nick": "JuninFF",
-            "ff_role": "igl",
+            "ff_role": "cpt",
             "ff_region": "BR",
             "banner_theme": "ember",
         },
@@ -87,5 +87,5 @@ def test_home_e_perfil_ff(client, seeded):
     assert profile.status_code == 200
     data = profile.json()
     assert data["ff_id"] == "99887766"
-    assert data["ff_role"] == "igl"
+    assert data["ff_role"] == "cpt"
     assert data["banner_theme"] == "ember"

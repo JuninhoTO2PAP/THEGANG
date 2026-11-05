@@ -6,7 +6,7 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 
-FF_ROLES = {"igl", "entry", "support", "sniper", "flex", "coach"}
+FF_ROLES = {"cpt", "r1", "r2", "r3", "suporte"}
 FF_REGIONS = {"BR", "LATAM", "NA", "EU", "ASIA", "OTHER"}
 BANNER_THEMES = {"gold", "ember", "navy", "violet", "forest", "crimson"}
 
@@ -115,7 +115,7 @@ class UserUpdate(BaseModel):
             return None
         cleaned = value.strip().lower()
         if cleaned not in FF_ROLES:
-            raise ValueError("Função inválida. Use igl, entry, support, sniper, flex ou coach.")
+            raise ValueError("Função inválida. Use CPT, R1, R2, R3 ou SUPORTE.")
         return cleaned
 
     @field_validator("ff_region")
