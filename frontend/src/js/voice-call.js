@@ -362,7 +362,12 @@ export async function startVoiceCall(channel, mountEl, { user, group } = {}) {
         ${
           kind === "user"
             ? `<div class="call-speak-bar" aria-hidden="true"><span></span><span></span><span></span></div>`
-            : ""
+            : `<div class="screen-tools">
+                <button type="button" data-screen="expand" title="Tela cheia">⛶</button>
+                <button type="button" data-screen="min" title="Minimizar">—</button>
+                <button type="button" data-screen="hide" title="Não assistir">✕</button>
+              </div>
+              <button type="button" class="screen-watch" data-screen="watch" hidden>Assistir tela</button>`
         }
         <span class="call-tile-name">${escapeHtml(label)}</span>
       `;
@@ -405,6 +410,75 @@ export async function startVoiceCall(channel, mountEl, { user, group } = {}) {
       statusEl.title = names.join(", ");
     };
 
+    const screenPubs = new Map();
+    let lightbox = null;
+
+    const closeLightbox = () => {
+      if (!lightbox) return;
+      const video = lightbox.querySelector("video");
+      const home = lightbox.dataset.home
+        ? videosEl.querySelector(`[data-tile="${lightbox.dataset.home}"]`)
+        : null;
+      if (video && home) home.prepend(video);
+      lightbox.remove();
+      lightbox = null;
+    };
+
+    const expandScreen = (wrap) => {
+      const video = wrap.querySelector("video");
+      if (!video) return;
+      closeLightbox();
+      wrap.classList.remove("is-min", "is-off");
+      lightbox = document.createElement("div");
+      lightbox.className = "screen-lightbox";
+      lightbox.dataset.home = wrap.dataset.tile;
+      const bar = document.createElement("div");
+      bar.className = "screen-lightbox-bar";
+      bar.innerHTML = `<strong>${wrap.querySelector(".call-tile-name")?.textContent || "Tela"}</strong>`;
+      const exit = document.createElement("button");
+      exit.type = "button";
+      exit.className = "btn btn-secondary";
+      exit.textContent = "Sair da tela cheia";
+      exit.addEventListener("click", closeLightbox);
+      bar.appendChild(exit);
+      lightbox.append(bar, video);
+      document.body.appendChild(lightbox);
+    };
+
+    const setWatching = async (wrap, watch) => {
+      const pub = screenPubs.get(wrap.dataset.tile);
+      wrap.classList.toggle("is-off", !watch);
+      wrap.classList.remove("is-min");
+      const watchBtn = wrap.querySelector(".screen-watch");
+      if (watchBtn) watchBtn.hidden = watch;
+      if (!watch) closeLightbox();
+      if (pub && typeof pub.setSubscribed === "function" && !pub.track?.isLocal) {
+        try {
+          await pub.setSubscribed(watch);
+        } catch {
+          /* preview local não desinscreve */
+        }
+      }
+      const video = wrap.querySelector("video");
+      if (video) video.style.display = watch ? "" : "none";
+    };
+
+    videosEl.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-screen]");
+      if (!button) return;
+      const wrap = button.closest(".call-tile.screen");
+      if (!wrap) return;
+      const action = button.dataset.screen;
+      if (action === "expand") expandScreen(wrap);
+      if (action === "min") {
+        closeLightbox();
+        wrap.classList.toggle("is-min");
+        wrap.classList.remove("is-off");
+      }
+      if (action === "hide") setWatching(wrap, false);
+      if (action === "watch") setWatching(wrap, true);
+    });
+
     const attachTrack = (track, participant, publication) => {
       const source = publication?.source;
       const isScreen =
@@ -430,6 +504,8 @@ export async function startVoiceCall(channel, mountEl, { user, group } = {}) {
       if (track.kind === "video") {
         const kind = isScreen ? "screen" : "user";
         const wrap = ensureTile(participant, kind);
+        if (isScreen && publication) screenPubs.set(wrap.dataset.tile, publication);
+        if (isScreen && wrap.classList.contains("is-off")) return;
         wrap.querySelectorAll("video").forEach((v) => v.remove());
         wrap.classList.toggle("has-video", true);
         const video = track.attach();
@@ -441,6 +517,9 @@ export async function startVoiceCall(channel, mountEl, { user, group } = {}) {
     };
 
     const detachTrack = (track, participant, publication) => {
+      if (lightbox?.querySelector("video") && track.attachedElements?.includes(lightbox.querySelector("video"))) {
+        closeLightbox();
+      }
       track.detach().forEach((el) => el.remove());
       const source = publication?.source;
       if (
@@ -623,6 +702,7 @@ export async function leaveVoiceCall() {
     offEventWs();
     offEventWs = null;
   }
+  document.querySelector(".screen-lightbox")?.remove();
   stageRoot?.remove();
   stageRoot = null;
   joinedChannelId = null;
